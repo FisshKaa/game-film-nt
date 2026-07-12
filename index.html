@@ -776,7 +776,7 @@ async function loadBetsToResolve(){
     stillActive.forEach(b=>{
       (byItem[b.item_id] = byItem[b.item_id] || { title:b.item_title, bets:[] }).bets.push(b);
     });
-    html += `<h4>🎲 Ставки на твою игру</h4>` + Object.values(byItem).map(g=>`
+    html += `<h4>🎲 Ставки на ${domain==='games'?'твою игру':'твой просмотр'}</h4>` + Object.values(byItem).map(g=>`
       <div class="resolve-item">
         <div class="resolve-top"><b>${esc(g.title)}</b></div>
         ${g.bets.map(b=>`<div class="stake-row mono">${esc(b.bettor_name||b.bettor_handle)} — ${b.amount} 🟡</div>`).join('')}
