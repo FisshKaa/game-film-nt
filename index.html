@@ -455,6 +455,9 @@
     font-family:inherit;font-size:13px;padding:8px 11px;outline:none}
   .rl-music input:focus{border-color:var(--accent-dim)}
   .rl-music .mnote{font-size:16px}
+  .rl-vol{display:flex;align-items:center;gap:10px;margin:4px 0 2px;color:var(--muted);font-size:13px}
+  .rl-vol input[type=range]{flex:1;accent-color:var(--accent);cursor:pointer}
+  .rl-vol-num{font-family:'Space Mono',monospace;font-size:12px;color:var(--muted2);min-width:38px;text-align:right}
   .yt-host{position:fixed;left:-10000px;top:0;width:320px;height:180px;opacity:0;pointer-events:none}
   .yt-host iframe{width:320px;height:180px;border:0}
 
@@ -792,6 +795,13 @@ async function loadMusicUrl(){
 }
 async function saveMusicUrl(u){
   try{ await window.storage.set(KEY_MUSIC, u, false); }catch(e){}
+}
+const KEY_VOL = 'roulette-vol';
+async function loadRlVolume(){
+  try{ const r = await window.storage.get(KEY_VOL, false); const v = r?parseInt(r.value,10):NaN; return isFinite(v)?v:60; }catch(e){ return 60; }
+}
+async function saveRlVolume(v){
+  try{ await window.storage.set(KEY_VOL, String(v), false); }catch(e){}
 }
 /* ---------------- Автопостеры: TMDB (фильмы) + Википедия (игры) ---------------- */
 // TMDB v4 Read Access Token (только чтение). Виден в коде — это осознанный выбор для проекта «для своих».
@@ -1315,6 +1325,7 @@ let myHandle = '';        // ник в текущем домене
 let searchQuery = '';
 let statusFilter = 'all';
 let musicUrl = '';
+let rlVolume = 60;        // громкость музыки рулетки (0–100)
 let centerCfg = { type:'emoji', value:'💃' };
 const CENTER_EMOJI = ['💃','🕺','🎮','🎲','🔥','🐸','🤖','👾'];
 
@@ -1998,6 +2009,11 @@ function openRoulette(){
       <span class="mnote">🎵</span>
       <input type="text" id="musicUrl" placeholder="Ссылка на YouTube для музыки (необязательно)" value="${esc(musicUrl)}" autocomplete="off">
     </div>
+    <div class="rl-vol">
+      <span>🔈</span>
+      <input type="range" id="rlVol" min="0" max="100" step="1" value="${rlVolume}">
+      <span class="rl-vol-num" id="rlVolNum">${rlVolume}%</span>
+    </div>
     <div class="rl-center-pick" id="centerPick">
       <span class="lbl">Центр</span>
       ${CENTER_EMOJI.map(e=>`<button class="cbtn ${centerCfg.type==='emoji'&&centerCfg.value===e?'sel':''}" data-type="emoji" data-val="${e}">${e}</button>`).join('')}
@@ -2052,6 +2068,14 @@ function openRoulette(){
   });
 
   musicInp.addEventListener('change', ()=>{ musicUrl = musicInp.value.trim(); saveMusicUrl(musicUrl); });
+  const volInp = document.getElementById('rlVol');
+  const volNum = document.getElementById('rlVolNum');
+  if(volInp) volInp.addEventListener('input', ()=>{
+    rlVolume = parseInt(volInp.value, 10) || 0;
+    if(volNum) volNum.textContent = rlVolume + '%';
+    if(ytPlayer && ytPlayer.setVolume){ try{ ytPlayer.setVolume(rlVolume); }catch(e){} }
+    saveRlVolume(rlVolume);
+  });
 
   let ytPlayer = null;
   // Запускает музыку; onPlaying вызывается, когда трек реально заиграл (нет ссылки — сразу)
@@ -2067,7 +2091,8 @@ function openRoulette(){
           videoId: yt.id,
           playerVars:{ autoplay:1, start:yt.start, controls:0, modestbranding:1, playsinline:1 },
           events:{
-            onStateChange:(e)=>{ if(e.data === YT.PlayerState.PLAYING) fire(); },
+            onReady:(e)=>{ try{ e.target.setVolume(rlVolume); }catch(_){} },
+            onStateChange:(e)=>{ if(e.data === YT.PlayerState.PLAYING){ try{ e.target.setVolume(rlVolume); }catch(_){} fire(); } },
             onError:()=>fire()
           }
         });
@@ -2596,6 +2621,7 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   coinBalance = await loadCoinBalance();
   balanceStore[domain] = coinBalance;
   musicUrl = await loadMusicUrl();
+  rlVolume = await loadRlVolume();
   const cc = await loadCenterCfg(); if(cc) centerCfg = cc;
   document.body.dataset.domain = domain;
   // Если это устройство уже привязано (сохранён PIN) — подтягиваем актуальные данные из облака,
