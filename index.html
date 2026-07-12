@@ -1861,6 +1861,20 @@ function openFriendProfile(p, init){
 
 /* ---------------- Roulette (барабан) ---------------- */
 // Разбор ссылки на YouTube → {id, start(сек)} или null
+// Загружает YouTube IFrame API один раз; резолвится, когда доступен YT.Player
+let __ytApiPromise = null;
+function ensureYTApi(){
+  if(window.YT && window.YT.Player) return Promise.resolve();
+  if(__ytApiPromise) return __ytApiPromise;
+  __ytApiPromise = new Promise(resolve=>{
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = ()=>{ if(typeof prev==='function'){ try{ prev(); }catch(e){} } resolve(); };
+    const tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+  });
+  return __ytApiPromise;
+}
 function parseYouTube(url){
   if(!url) return null;
   let s = url.trim();
@@ -1977,7 +1991,7 @@ function openRoulette(){
     </div>
     <div class="rl-controls">
       <span>Время вращения:</span>
-      <input type="number" id="spinSecs" class="rl-secs" value="5" min="1" max="30" step="1">
+      <input type="number" id="spinSecs" class="rl-secs" value="5" min="1" max="240" step="1">
       <span>сек</span>
     </div>
     <div class="rl-music">
@@ -2039,12 +2053,28 @@ function openRoulette(){
 
   musicInp.addEventListener('change', ()=>{ musicUrl = musicInp.value.trim(); saveMusicUrl(musicUrl); });
 
-  function startMusic(){
+  let ytPlayer = null;
+  // Запускает музыку; onPlaying вызывается, когда трек реально заиграл (нет ссылки — сразу)
+  function startMusic(onPlaying){
     const yt = parseYouTube(musicInp.value);
-    if(!yt){ ytHost.innerHTML=''; return; }
-    ytHost.innerHTML = `<iframe src="https://www.youtube.com/embed/${encodeURIComponent(yt.id)}?autoplay=1&start=${yt.start}&controls=0&modestbranding=1&playsinline=1" allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+    if(!yt){ ytHost.innerHTML=''; if(onPlaying) onPlaying(); return; }
+    ytHost.innerHTML = '<div id="ytPlayer"></div>';
+    let fired = false;
+    const fire = ()=>{ if(fired) return; fired = true; if(onPlaying) onPlaying(); };
+    ensureYTApi().then(()=>{
+      try{
+        ytPlayer = new YT.Player('ytPlayer', {
+          videoId: yt.id,
+          playerVars:{ autoplay:1, start:yt.start, controls:0, modestbranding:1, playsinline:1 },
+          events:{
+            onStateChange:(e)=>{ if(e.data === YT.PlayerState.PLAYING) fire(); },
+            onError:()=>fire()
+          }
+        });
+      }catch(e){ fire(); }
+    });
   }
-  function stopMusic(){ ytHost.innerHTML=''; }
+  function stopMusic(){ try{ if(ytPlayer && ytPlayer.destroy) ytPlayer.destroy(); }catch(e){} ytPlayer=null; ytHost.innerHTML=''; }
 
   const currentPool = ()=>games.filter(g=>enabled.has(g.status));
 
@@ -2074,7 +2104,7 @@ function openRoulette(){
 
     let secs = parseFloat(secsInp.value);
     if(!isFinite(secs)) secs = 5;
-    secs = Math.max(1, Math.min(30, secs));
+    secs = Math.max(1, Math.min(240, secs));
     secsInp.value = secs;
 
     const N = pool.length;
@@ -2091,12 +2121,26 @@ function openRoulette(){
     const advance = turns*360 + (((targetMod - curMod) % 360) + 360) % 360;
     rotation += advance;
 
-    startMusic();
-    centerEl.classList.add('dancing');
-    requestAnimationFrame(()=>{
-      wheelRot.style.transition = `transform ${secs}s cubic-bezier(0.15,0.68,0.10,1)`;
-      wheelRot.style.transform = `rotate(${rotation}deg)`;
-    });
+    // Запуск анимации колеса + центра
+    const beginSpin = ()=>{
+      centerEl.classList.add('dancing');
+      requestAnimationFrame(()=>{
+        wheelRot.style.transition = `transform ${secs}s cubic-bezier(0.15,0.68,0.10,1)`;
+        wheelRot.style.transform = `rotate(${rotation}deg)`;
+      });
+    };
+
+    const hasMusic = !!parseYouTube(musicInp.value);
+    if(hasMusic){
+      spinBtn.textContent = 'Ждём музыку…';
+      let go = false;
+      const fire = ()=>{ if(go) return; go = true; beginSpin(); };
+      startMusic(fire);
+      setTimeout(fire, 15000);   // фолбэк: если музыка не завелась за 15 c — крутим без синхронизации
+    } else {
+      startMusic();              // без ссылки просто очистит хост
+      beginSpin();
+    }
 
     const onEnd = ()=>{
       wheelRot.removeEventListener('transitionend', onEnd);
