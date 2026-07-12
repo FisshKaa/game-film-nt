@@ -353,6 +353,12 @@
     width:32px;height:32px;border-radius:9px;font-size:18px;line-height:1;border:1px solid var(--line)}
   .close:hover{color:var(--text)}
   .modal-back{margin-bottom:16px}
+  .kp-link{display:inline-flex;align-items:center;gap:6px;margin-top:16px;font-size:13.5px;font-weight:600;
+    color:var(--accent);text-decoration:none;border:1px solid var(--accent-dim);border-radius:10px;padding:9px 14px;
+    transition:background .15s}
+  .kp-link:hover{background:var(--surface2)}
+  .foot .attr{margin-top:10px;font-size:11px;color:var(--muted2);line-height:1.5;max-width:640px;margin-left:auto;margin-right:auto}
+  .foot .attr a{color:var(--muted)}
 
   /* ---------- Roulette ---------- */
   .rl-picks{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 16px}
@@ -518,8 +524,9 @@
     <div id="app"><div class="loading mono">Загружаю библиотеку…</div></div>
     <div id="leaderboard" class="leaderboard"></div>
     <div class="foot">
-      Данные хранятся в этом артефакте и сохраняются между сессиями.
+      Данные хранятся локально в браузере.
       &nbsp;·&nbsp; <button id="resetBtn">Очистить всё</button>
+      <div class="attr">Постеры фильмов — <a href="https://www.themoviedb.org/" target="_blank" rel="noopener">TMDB</a> (продукт использует TMDB API, но не одобрен и не сертифицирован TMDB). Обложки игр — Википедия.</div>
     </div>
   </div>
   <aside class="reviews-side" id="reviewsSide">
@@ -663,6 +670,49 @@ async function loadMusicUrl(){
 }
 async function saveMusicUrl(u){
   try{ await window.storage.set(KEY_MUSIC, u, false); }catch(e){}
+}
+/* ---------------- Автопостеры: TMDB (фильмы) + Википедия (игры) ---------------- */
+// TMDB v4 Read Access Token (только чтение). Виден в коде — это осознанный выбор для проекта «для своих».
+const TMDB_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJhYjczMTc3ZjZlZmI4ZDI3MDdmNzUwMzYxMDc4YWFhYyIsIm5iZiI6MTc4Mzg1NjIyNS4wMSwic3ViIjoiNmE1MzdjNjFmYjMxZmNkNWJkMzM4YjQ0Iiwic2NvcGVzIjpbImFwaV9yZWFkIl0sInZlcnNpb24iOjF9.ciMkIqRSKYgqb7qoNWzWRUuYhFnqayMguAa2B6KCosI';
+
+// Ссылка на страницу фильма на TMDB (прямая если знаем id, иначе поиск по названию)
+function movieUrl(item){
+  if(item && item.tmdbId) return `https://www.themoviedb.org/movie/${item.tmdbId}?language=ru`;
+  return `https://www.themoviedb.org/search?query=${encodeURIComponent((item&&item.title)||'')}`;
+}
+// Ищет фильм на TMDB по названию → {cover, tmdbId} или null
+async function fetchMovieCover(title){
+  if(!title) return null;
+  try{
+    const url = `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(title)}&language=ru-RU&include_adult=false`;
+    const res = await fetch(url, { headers:{ Authorization:'Bearer '+TMDB_TOKEN, accept:'application/json' } });
+    if(!res.ok) return null;
+    const data = await res.json();
+    const m = data && data.results && data.results[0];
+    if(!m) return null;
+    const cover = m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : '';
+    return { cover, tmdbId: m.id || null };
+  }catch(e){ console.error('tmdb fetch failed', e); return null; }
+}
+// Ищет обложку игры через API Википедии (заглавное изображение статьи). Без ключа, CORS открыт.
+async function fetchGameCover(title){
+  if(!title) return null;
+  for(const lang of ['ru','en']){
+    try{
+      const url = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*`
+        + `&generator=search&gsrsearch=${encodeURIComponent(title)}&gsrlimit=1`
+        + `&prop=pageimages&piprop=thumbnail&pithumbsize=500`;
+      const res = await fetch(url);
+      if(!res.ok) continue;
+      const data = await res.json();
+      const pages = data && data.query && data.query.pages;
+      if(pages){
+        const first = Object.values(pages)[0];
+        if(first && first.thumbnail && first.thumbnail.source) return { cover: first.thumbnail.source };
+      }
+    }catch(e){}
+  }
+  return null;
 }
 const KEY_CENTER = 'roulette-center';
 async function loadCenterCfg(){
@@ -1776,7 +1826,7 @@ function openForm(editId){
 async function submitForm(editId, getCover){
   const title = document.getElementById('fTitle').value.trim();
   const err = document.getElementById('formErr');
-  if(!title){ err.textContent='Впиши название игры.'; return; }
+  if(!title){ err.textContent='Впиши название.'; return; }
   const data = {
     title,
     genre: document.getElementById('fGenre').value.trim(),
@@ -1785,6 +1835,20 @@ async function submitForm(editId, getCover){
     review: document.getElementById('fReview').value.trim(),
     cover: getCover ? getCover() : '',
   };
+  // Авто-обложка, если вручную не задана: фильмы → TMDB, игры → Википедия
+  if(!data.cover || domain==='movies'){
+    const saveBtn = document.getElementById('saveGame');
+    const prevLabel = saveBtn ? saveBtn.textContent : '';
+    if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Ищу обложку…'; }
+    if(domain === 'movies'){
+      const r = await fetchMovieCover(title);
+      if(r){ if(!data.cover && r.cover) data.cover = r.cover; if(r.tmdbId) data.tmdbId = r.tmdbId; }
+    } else if(!data.cover){
+      const r = await fetchGameCover(title);
+      if(r && r.cover) data.cover = r.cover;
+    }
+    if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = prevLabel; }
+  }
   let item;
   if(editId){
     const i = games.findIndex(x=>x.id===editId);
@@ -1844,6 +1908,7 @@ function openDetail(id, list, readonly, onBack, backLabel){
       </div>
     </div>
     <div class="rd-body ${g.review?'':'empty'}">${g.review?esc(g.review):'Обзор пока не написан.'}</div>
+    ${domain==='movies'?`<a class="kp-link" href="${movieUrl(g)}" target="_blank" rel="noopener">🎬 Открыть на TMDB ↗</a>`:''}
     ${readonly ? '' : `<div class="rd-actions">
       <button class="btn ghost sm" id="editG">Редактировать</button>
       <button class="btn ghost sm" id="delG" style="color:var(--s)">Удалить</button>
