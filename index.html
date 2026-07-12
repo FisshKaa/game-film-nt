@@ -1830,7 +1830,6 @@ function openFriendProfile(p, init){
   let fq = (init && init.fq) || '';
   let fSt = (init && init.fSt) || 'all';
   showModal(`
-    <button class="close" onclick="__close()">×</button>
     <div class="p-top" style="margin-bottom:4px">
       <div class="avatar${frameClass(p.cosmetics)}" style="cursor:default">${esc(p.avatar||'🎮')}</div>
       <div class="p-id">
@@ -2219,6 +2218,8 @@ function openPublish(){
 /* ---------------- Modal helpers ---------------- */
 function showModal(inner, modalClass){ modal.className = 'modal' + (modalClass?(' '+modalClass):''); modal.innerHTML = inner; overlay.classList.add('open'); }
 function closeModal(){ overlay.classList.remove('open'); modal.innerHTML=''; modal.className='modal'; }
+// Клик по тёмному фону закрывает окно ТОЛЬКО в профиле друга (fp-modal). В остальных — только крестик/назад.
+overlay.addEventListener('click', e=>{ if(e.target===overlay && modal.classList.contains('fp-modal')) closeModal(); });
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
 // Двухшаговое подтверждение на кнопке (замена системного confirm, который блокируется в песочнице).
