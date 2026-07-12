@@ -53,8 +53,9 @@
   }
   .activity-refresh:hover{color:var(--text);border-color:var(--accent-dim)}
   .activity-empty{font-size:12.5px;color:var(--muted2);line-height:1.5}
-  .activity-item{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
-  .activity-item:last-child{border-bottom:none}
+  .activity-block{padding:8px 0;border-bottom:1px solid var(--line)}
+  .activity-block:last-child{border-bottom:none}
+  .activity-item{display:flex;gap:10px;align-items:center}
   .activity-avatar{
     width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:19px;flex-shrink:0;
     background:radial-gradient(circle at 30% 25%,#2f2a45,#191527); border:1px solid var(--line);
@@ -63,7 +64,12 @@
   .activity-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-game{font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-more{font-size:11px;color:var(--muted2);margin-left:4px}
-  .activity-pot{font-size:10.5px;color:#f5c451;margin-top:2px}
+  .activity-pot{font-size:10.5px;color:#f5c451;margin-top:6px;cursor:pointer;user-select:none}
+  .activity-pot:hover{color:#ffd873}
+  .bet-list{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
+  .bet-row{font-size:11.5px;color:var(--text);margin-bottom:5px;line-height:1.4}
+  .bet-row b{color:var(--accent)}
+  .bet-row .bet-note{color:var(--muted);font-style:italic;display:block;margin-top:1px}
   .bet-btn{
     flex-shrink:0;background:var(--ink);border:1px solid var(--line);border-radius:9px;
     width:30px;height:30px;font-size:14px;cursor:pointer;transition:border-color .15s,transform .15s;
@@ -77,6 +83,7 @@
   .resolve-top{font-size:12.5px;color:var(--text);margin-bottom:2px}
   .resolve-top b{color:var(--accent)}
   .resolve-note{font-size:11.5px;color:var(--muted);font-style:italic;margin-bottom:6px}
+  .stake-row{font-size:12px;color:var(--text);padding:2px 0}
   .resolve-actions{display:flex;gap:6px}
   .resolve-actions button{
     flex:1;font-size:11px;padding:5px 6px;border-radius:7px;border:1px solid var(--line);
@@ -744,27 +751,50 @@ async function loadBetsToResolve(){
       .select('*').eq('domain', domain).eq('target_handle', myHandle).eq('status','pending');
     pending = data || [];
   }catch(e){ console.error('loadBetsToResolve failed', e); }
-  // показываем ставку на разрешение только если сам тайтл уже не в активном статусе
-  const resolvable = pending.filter(b=>{
+
+  // Пока тайтл ещё активен — видно кто и сколько поставил, но не текст ставки.
+  // Как только статус сменится на любой другой (пройдено/заброшено/отложено и т.д.) — текст открывается и можно разрешить ставку.
+  const stillActive = [];
+  const resolvable = [];
+  pending.forEach(b=>{
     const g = games.find(x=>x.id===b.item_id);
-    return g && g.status !== activeStatus();
+    if(!g) return; // тайтл удалён — пропускаем
+    if(g.status === activeStatus()) stillActive.push(b); else resolvable.push(b);
   });
+
   if(!box){
     box = document.createElement('div');
     box.id = 'resolveBox';
     box.className = 'resolve-box';
     side.appendChild(box);
   }
-  if(resolvable.length === 0){ box.innerHTML = ''; return; }
-  box.innerHTML = `<h4>🎲 Ставки на проверку</h4>` + resolvable.map(b=>`
-    <div class="resolve-item">
-      <div class="resolve-top"><b>${esc(b.bettor_name||b.bettor_handle)}</b> поставил ${b.amount} 🟡 на «${esc(b.item_title)}»</div>
-      <div class="resolve-note">${esc(b.note||'')}</div>
-      <div class="resolve-actions">
-        <button class="resolve-win" data-id="${b.id}" data-win="1">✅ Выигрыш</button>
-        <button class="resolve-lose" data-id="${b.id}" data-win="0">❌ Проигрыш</button>
-      </div>
-    </div>`).join('');
+  if(stillActive.length === 0 && resolvable.length === 0){ box.innerHTML = ''; return; }
+
+  let html = '';
+  if(stillActive.length){
+    const byItem = {};
+    stillActive.forEach(b=>{
+      (byItem[b.item_id] = byItem[b.item_id] || { title:b.item_title, bets:[] }).bets.push(b);
+    });
+    html += `<h4>🎲 Ставки на твою игру</h4>` + Object.values(byItem).map(g=>`
+      <div class="resolve-item">
+        <div class="resolve-top"><b>${esc(g.title)}</b></div>
+        ${g.bets.map(b=>`<div class="stake-row mono">${esc(b.bettor_name||b.bettor_handle)} — ${b.amount} 🟡</div>`).join('')}
+        <div class="resolve-note">На что ставят — узнаешь, когда закроешь игру.</div>
+      </div>`).join('');
+  }
+  if(resolvable.length){
+    html += `<h4${stillActive.length ? ' style="margin-top:14px"' : ''}>🎲 Ставки на проверку</h4>` + resolvable.map(b=>`
+      <div class="resolve-item">
+        <div class="resolve-top"><b>${esc(b.bettor_name||b.bettor_handle)}</b> поставил ${b.amount} 🟡 на «${esc(b.item_title)}»</div>
+        <div class="resolve-note">${esc(b.note||'')}</div>
+        <div class="resolve-actions">
+          <button class="resolve-win" data-id="${b.id}" data-win="1">✅ Выигрыш</button>
+          <button class="resolve-lose" data-id="${b.id}" data-win="0">❌ Проигрыш</button>
+        </div>
+      </div>`).join('');
+  }
+  box.innerHTML = html;
   box.querySelectorAll('button[data-id]').forEach(btn=>{
     btn.addEventListener('click', ()=>resolveBet(btn.dataset.id, btn.dataset.win==='1'));
   });
@@ -807,10 +837,11 @@ async function loadFriendsActivity(){
   let potByItem = {};
   try{
     const { data: bets } = await sb.from('coin_bets')
-      .select('item_id, amount').eq('domain', domain).eq('status','pending');
+      .select('*').eq('domain', domain).eq('status','pending');
     (bets||[]).forEach(b=>{
-      if(!potByItem[b.item_id]) potByItem[b.item_id] = { count:0, total:0 };
+      if(!potByItem[b.item_id]) potByItem[b.item_id] = { count:0, total:0, bets:[] };
       potByItem[b.item_id].count++; potByItem[b.item_id].total += b.amount;
+      potByItem[b.item_id].bets.push(b);
     });
   }catch(e){ console.error('load bets pot failed', e); }
 
@@ -819,22 +850,37 @@ async function loadFriendsActivity(){
   } else {
     listEl.innerHTML = rows.map(({p, item}, idx)=>{
       const pot = potByItem[item.id];
-      const potHTML = pot ? `<div class="activity-pot mono">🎲 ${pot.count} · ${pot.total} 🟡</div>` : '';
+      const potHTML = pot ? `
+        <div class="activity-pot mono" data-toggle="${idx}">🎲 ${pot.count} · ${pot.total} 🟡 <span class="pot-arrow">▾</span></div>
+        <div class="bet-list" id="betlist-${idx}" style="display:none">
+          ${pot.bets.map(b=>`<div class="bet-row"><b>${esc(b.bettor_name||b.bettor_handle)}</b> — ${b.amount} 🟡<span class="bet-note">${esc(b.note||'')}</span></div>`).join('')}
+        </div>` : '';
       return `
-        <div class="activity-item">
-          <div class="activity-avatar">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
-          <div class="activity-info">
-            <div class="activity-name">${esc(p.name||p.handle)}</div>
-            <div class="activity-game">${esc(item.title)}</div>
-            ${potHTML}
+        <div class="activity-block">
+          <div class="activity-item">
+            <div class="activity-avatar">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
+            <div class="activity-info">
+              <div class="activity-name">${esc(p.name||p.handle)}</div>
+              <div class="activity-game">${esc(item.title)}</div>
+            </div>
+            <button class="bet-btn" data-idx="${idx}" title="Поставить Добрикоин">🎲</button>
           </div>
-          <button class="bet-btn" data-idx="${idx}" title="Поставить Добрикоин">🎲</button>
+          ${potHTML}
         </div>`;
     }).join('');
     listEl.querySelectorAll('.bet-btn').forEach(btn=>{
       btn.addEventListener('click', ()=>{
         const { p, item } = activityRows[+btn.dataset.idx];
         openBetModal(p, item);
+      });
+    });
+    listEl.querySelectorAll('.activity-pot[data-toggle]').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const listBox = document.getElementById('betlist-'+el.dataset.toggle);
+        if(!listBox) return;
+        const open = listBox.style.display !== 'none';
+        listBox.style.display = open ? 'none' : 'block';
+        const arrow = el.querySelector('.pot-arrow'); if(arrow) arrow.textContent = open ? '▾' : '▴';
       });
     });
   }
