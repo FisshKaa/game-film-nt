@@ -780,7 +780,7 @@ async function loadBetsToResolve(){
       <div class="resolve-item">
         <div class="resolve-top"><b>${esc(g.title)}</b></div>
         ${g.bets.map(b=>`<div class="stake-row mono">${esc(b.bettor_name||b.bettor_handle)} — ${b.amount} 🟡</div>`).join('')}
-        <div class="resolve-note">На что ставят — узнаешь, когда закроешь игру.</div>
+        <div class="resolve-note">На что ставят — узнаешь, когда ${domain==='games'?'закроешь игру':'досмотришь фильм'}.</div>
       </div>`).join('');
   }
   if(resolvable.length){
