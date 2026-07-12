@@ -553,7 +553,7 @@
 const STATUS_PALETTE = ['#4ade80','#f5b942','#38bdf8','#ff477e','#a78bfa']; // done, active, hold, dropped, planned
 const DOMAINS = {
   games: {
-    itemsKey:'games-list', handleKey:'my-handle', pubPrefix:'pub:',
+    itemsKey:'games-list', handleKey:'my-handle', pinKey:'vault-pin', pubPrefix:'pub:',
     statuses:['Пройдено','Играю','Отложено','Заброшено','В планах'],
     L:{
       nameLabel:'Название игры', namePlaceholder:'напр. Hollow Knight', genrePlaceholder:'Метроидвания',
@@ -569,7 +569,7 @@ const DOMAINS = {
     }
   },
   movies: {
-    itemsKey:'movies-list', handleKey:'my-handle-m', pubPrefix:'pubm:',
+    itemsKey:'movies-list', handleKey:'my-handle-m', pinKey:'vault-pin-m', pubPrefix:'pubm:',
     statuses:['Просмотрено','Смотрю','Отложено','Брошено','В планах'],
     L:{
       nameLabel:'Название фильма', namePlaceholder:'напр. Inception', genrePlaceholder:'Триллер',
@@ -672,6 +672,53 @@ async function loadHandleFor(dom){
 }
 async function saveHandle(h){
   try{ await window.storage.set(D().handleKey, h, false); }catch(e){}
+}
+
+/* ---------------- Синк ник+PIN: вход на новом устройстве/браузере ----------------
+   handle_claims — отдельная таблица в Supabase (id, pin_hash), доступная только через
+   RPC claim_handle (SECURITY DEFINER), сверяющую PIN через pgcrypto на стороне БД.
+   Сами данные (профиль/items/баланс) уже публичны в public_profiles — PIN защищает
+   не чтение, а право называться этим ником и перезаписывать его с нового устройства. */
+async function loadVaultPin(dom){
+  try{ const r = await window.storage.get(DOMAINS[dom||domain].pinKey, false); return r ? r.value : ''; }
+  catch(e){ return ''; }
+}
+async function saveVaultPin(pin){
+  try{ await window.storage.set(D().pinKey, pin, false); }catch(e){}
+}
+async function clearVaultPin(){
+  try{ await window.storage.delete(D().pinKey, false); }catch(e){}
+}
+// Регистрирует хендл за этим PIN (если свободен) либо проверяет PIN (если уже занят)
+async function claimHandle(handle, pin){
+  const { error } = await sb.rpc('claim_handle', { p_id: domain+':'+handle, p_pin: pin });
+  if(error) throw error;
+  return true;
+}
+// Подтягивает облачную версию профиля/items/баланса для домена dom, если на этом устройстве
+// сохранён PIN для соответствующего хендла. Возвращает true, если данные были найдены и подтянуты.
+async function syncFromCloud(dom){
+  const isActive = dom === domain;
+  const handle = isActive ? myHandle : handleStore[dom];
+  if(!handle) return false;
+  const pin = await loadVaultPin(dom);
+  if(!pin) return false;
+  try{
+    const { data, error } = await sb.from('public_profiles').select('*').eq('id', dom+':'+handle).maybeSingle();
+    if(error || !data) return false;
+    const items = Array.isArray(data.items) ? data.items : [];
+    const balance = typeof data.balance === 'number' ? data.balance : (isActive ? coinBalance : balanceStore[dom]);
+    itemsStore[dom] = items;
+    balanceStore[dom] = balance;
+    await window.storage.set(DOMAINS[dom].itemsKey, JSON.stringify(items), false);
+    await window.storage.set('coin:'+dom, String(balance), false);
+    if(isActive){
+      games = items; coinBalance = balance;
+      profile = { ...profile, name: data.name ?? profile.name, tag: data.tag ?? profile.tag, avatar: data.avatar ?? profile.avatar };
+      await window.storage.set(KEY_PROFILE, JSON.stringify(profile), false);
+    }
+    return true;
+  }catch(e){ console.error('syncFromCloud failed', dom, e); return false; }
 }
 const KEY_MUSIC = 'roulette-music';
 async function loadMusicUrl(){
@@ -1206,8 +1253,11 @@ async function switchDomain(dom){
   loadFriendsReviews();
   coinBalance = await loadCoinBalance();
   balanceStore[domain] = coinBalance;
-  const badge = document.getElementById('coinStatNum');
-  if(badge) badge.textContent = coinBalance;
+  const pulled = await syncFromCloud(domain);
+  if(pulled) render(); else {
+    const badge = document.getElementById('coinStatNum');
+    if(badge) badge.textContent = coinBalance;
+  }
 }
 
 const AVATARS = ['🎮','👾','🕹️','🎯','🏆','🐉','⚔️','🛸','🍄','💀','🦊','🤖'];
@@ -1820,31 +1870,45 @@ function openPublish(){
   const suggested = myHandle || (profile.name||'player').toLowerCase().replace(/[^a-zа-я0-9_]+/gi,'_').slice(0,20);
   showModal(`
     <button class="close" onclick="__close()">×</button>
-    <h3>Опубликовать профиль</h3>
-    <p class="comm-note">${esc(L().publishNote)}</p>
+    <h3>Профиль и синхронизация</h3>
+    <p class="comm-note">${esc(L().publishNote)} Ник и PIN также работают как вход: открой это же приложение на телефоне или в другом браузере, введи те же ник и PIN — и заберёшь сюда свой профиль.</p>
     <label>Ник</label>
     <input type="text" id="fHandle" value="${esc(suggested)}" maxlength="20" placeholder="напр. gamer_max">
+    <label>PIN (придумай, минимум 4 символа — понадобится для входа на других устройствах)</label>
+    <input type="password" id="fPin" maxlength="30" placeholder="••••" autocomplete="off">
     <div class="err" id="pubErr"></div>
     <div class="form-actions">
       ${myHandle?`<button class="btn ghost" id="unpubBtn" style="color:var(--s)">Убрать из витрины</button>`:`<button class="btn ghost" onclick="__close()">Отмена</button>`}
-      <button class="btn" id="doPublish">${myHandle?'Обновить':'Опубликовать'}</button>
+      <button class="btn" id="doPublish">${myHandle?'Обновить':'Опубликовать / Войти'}</button>
     </div>
   `);
   document.getElementById('doPublish').addEventListener('click', async ()=>{
     const raw = document.getElementById('fHandle').value.trim().replace(/\s+/g,'_');
+    const pin = document.getElementById('fPin').value.trim();
     const err = document.getElementById('pubErr');
+    const btn = document.getElementById('doPublish');
+    err.textContent = '';
     if(!raw){ err.textContent='Впиши ник.'; return; }
-    err.textContent='';
-    document.getElementById('doPublish').textContent='Публикую…';
+    if(pin.length < 4){ err.textContent='PIN должен быть не короче 4 символов.'; return; }
+    btn.disabled = true; btn.textContent = 'Проверяю…';
     try{
-      if(myHandle && myHandle!==raw) await unpublishProfile(myHandle);
-      await publishProfile(raw);
-      myHandle = raw; await saveHandle(myHandle);
+      await claimHandle(raw, pin);
+      const oldHandle = myHandle;
+      myHandle = raw; await saveHandle(myHandle); await saveVaultPin(pin);
+      if(oldHandle && oldHandle !== raw){ try{ await unpublishProfile(oldHandle); }catch(e){} }
+      const pulled = await syncFromCloud(domain);
+      if(!pulled){ await publishProfile(raw); await persistCoinBalance(coinBalance); }
       closeModal(); render(); loadLeaderboard();
-    }catch(e){ err.textContent='Не удалось опубликовать. Попробуй ещё раз.'; }
+    }catch(e){
+      const msg = (e && e.message) || '';
+      if(msg.includes('wrong_pin')) err.textContent = 'Неверный PIN для этого ника. Если это не твой ник — выбери другой.';
+      else if(msg.includes('pin_too_short')) err.textContent = 'PIN должен быть не короче 4 символов.';
+      else err.textContent = 'Не удалось сохранить. Попробуй ещё раз.';
+      btn.disabled = false; btn.textContent = myHandle?'Обновить':'Опубликовать / Войти';
+    }
   });
   armButton(document.getElementById('unpubBtn'), 'Точно убрать?', async ()=>{
-    await unpublishProfile(myHandle); myHandle=''; await saveHandle(''); closeModal(); render(); loadLeaderboard();
+    await unpublishProfile(myHandle); myHandle=''; await saveHandle(''); await clearVaultPin(); closeModal(); render(); loadLeaderboard();
   });
 }
 
@@ -2148,10 +2212,14 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   musicUrl = await loadMusicUrl();
   const cc = await loadCenterCfg(); if(cc) centerCfg = cc;
   document.body.dataset.domain = domain;
+  // Если это устройство уже привязано (сохранён PIN) — подтягиваем актуальные данные из облака,
+  // чтобы профиль совпадал с тем, что видно на других устройствах/браузерах.
+  await syncFromCloud(domain);
   render();
   loadFriendsActivity();
   loadFriendsReviews();
   loadLeaderboard();
+  syncFromCloud(domain==='games'?'movies':'games'); // фоновая подтяжка второго домена, без ожидания
   const activityRefreshBtn = document.getElementById('activityRefreshBtn');
   if(activityRefreshBtn) activityRefreshBtn.addEventListener('click', loadFriendsActivity);
   const reviewsRefreshBtn = document.getElementById('reviewsRefreshBtn');
