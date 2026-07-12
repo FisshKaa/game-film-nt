@@ -1831,6 +1831,7 @@ function openForm(editId){
       <div class="cover-actions">
         <input type="text" id="fCoverUrl" placeholder="Вставь ссылку на картинку…">
         <div class="cover-btns">
+          <button type="button" class="btn ghost sm" id="autoCover">🔄 Подобрать</button>
           <button type="button" class="btn ghost sm" id="uploadBtn">Загрузить файл</button>
           <button type="button" class="btn ghost sm" id="clearCover">Убрать</button>
         </div>
@@ -1869,6 +1870,20 @@ function openForm(editId){
   urlInp.addEventListener('input', ()=>{ currentCover = urlInp.value.trim(); drawPrev(); });
   document.getElementById('uploadBtn').addEventListener('click', ()=>fileInp.click());
   document.getElementById('clearCover').addEventListener('click', ()=>{ currentCover=''; urlInp.value=''; drawPrev(); });
+  document.getElementById('autoCover').addEventListener('click', async (e)=>{
+    const t = document.getElementById('fTitle').value.trim();
+    if(!t){ prev.textContent = 'сначала впиши название'; return; }
+    const btn = e.currentTarget; const old = btn.textContent;
+    btn.disabled = true; btn.textContent = '…'; prev.textContent = 'ищу обложку…';
+    try{
+      const r = (domain === 'movies') ? await fetchMovieCover(t) : await fetchGameCover(t);
+      if(r && r.cover){ currentCover = r.cover; urlInp.value=''; }
+      else { currentCover = ''; }
+    }catch(err){ /* оставляем как есть */ }
+    drawPrev();
+    if(!currentCover) prev.textContent = 'не нашлось — впиши точнее или задай вручную';
+    btn.disabled = false; btn.textContent = old;
+  });
   fileInp.addEventListener('change', async ()=>{
     const f = fileInp.files[0]; if(!f) return;
     prev.textContent = 'обработка…';
