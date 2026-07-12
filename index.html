@@ -702,7 +702,7 @@ async function fetchGameCover(title){
     try{
       const url = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*`
         + `&redirects=1&generator=search&gsrsearch=${encodeURIComponent(title)}&gsrlimit=5`
-        + `&prop=pageimages&piprop=thumbnail&pithumbsize=500`;
+        + `&prop=pageimages&piprop=thumbnail&pithumbsize=500&pilicense=any`;
       const res = await fetch(url);
       if(!res.ok) continue;
       const data = await res.json();
