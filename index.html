@@ -692,7 +692,7 @@ async function loadFriendsReviews(){
     });
   });
   reviews.sort((a,b)=>(b.item.added||0)-(a.item.added||0));
-  const top = reviews.slice(0, 12);
+  const top = reviews.slice(0, 5);
   if(top.length === 0){
     listEl.innerHTML = `<div class="activity-empty mono">Пока нет обзоров от друзей.</div>`;
     return;
