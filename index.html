@@ -65,9 +65,15 @@
   .bg-neon{background:linear-gradient(135deg,#0f2027,#203a43,#2c5364)!important}
   .bg-space{background:radial-gradient(1.5px 1.5px at 20% 30%,#fff,transparent),radial-gradient(1.5px 1.5px at 62% 68%,#fff,transparent),radial-gradient(1.5px 1.5px at 82% 22%,#dde,transparent),radial-gradient(1.5px 1.5px at 40% 80%,#fff,transparent),linear-gradient(160deg,#0b1026,#161a3a)!important}
   .fp-head{padding:12px;border-radius:14px}
-  .name-row{display:flex;align-items:center;gap:6px}
+  .name-row{display:flex;align-items:center;gap:8px}
   .p-nbadge{font-size:20px;line-height:1;flex-shrink:0}
   .fn .p-nbadge,.fp-name .p-nbadge,.lb-name .p-nbadge{font-size:0.9em;margin-right:2px}
+  .nm-txt{display:inline-block}
+  .p-edit{background:var(--surface2);border:1px solid var(--line);color:var(--muted);border-radius:9px;
+    padding:4px 9px;font-size:14px;cursor:pointer;flex-shrink:0;line-height:1}
+  .p-edit:hover{color:var(--text);border-color:var(--muted2)}
+  .me-badge{display:inline-block;font-family:'Space Mono',monospace;font-size:10px;background:var(--accent-dim);
+    color:#12121a;padding:1px 6px;border-radius:20px;margin-left:8px;vertical-align:middle}
 
   /* Анимация имени */
   .fx-gold{background:linear-gradient(90deg,#f5b942,#fff3c4,#f5b942);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
@@ -226,10 +232,9 @@
   .p-name{
     font-family:'Bricolage Grotesque',sans-serif; font-weight:800;
     font-size:clamp(24px,5vw,34px); line-height:1.05; letter-spacing:-.02em;
-    background:transparent;border:none;color:var(--text);width:100%;
-    outline:none; border-bottom:2px solid transparent; padding:2px 0;
+    color:var(--text); padding:2px 0; cursor:pointer; word-break:break-word;
   }
-  .p-name:focus{border-bottom-color:var(--accent-dim)}
+  .p-tag-disp{cursor:pointer}
   .p-tag{
     background:transparent;border:none;color:var(--muted);width:100%;
     font-size:14px; outline:none; margin-top:4px; padding:2px 0;
@@ -333,8 +338,6 @@
     font-size:26px;background:radial-gradient(circle at 30% 25%,#2f2a45,#191527);border:1px solid var(--line)}
   .fcard .fn{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;line-height:1.1}
   .fcard .fm{font-size:12px;color:var(--muted);margin-top:3px}
-  .fcard.me-tag .fn::after{content:'ты';font-family:'Space Mono',monospace;font-size:10px;
-    background:var(--accent-dim);color:#12121a;padding:1px 6px;border-radius:20px;margin-left:8px;vertical-align:middle}
   .fmodal-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:14px 0 6px}
   .fmodal-stats .stat{padding:10px}
   .fmodal-stats .num{font-size:19px}
@@ -409,9 +412,13 @@
   }
   @keyframes pop{from{opacity:0;transform:translateY(10px) scale(.98)}to{opacity:1;transform:none}}
   .modal h3{font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:21px;margin-bottom:16px}
-  .close{position:absolute;top:16px;right:16px;background:var(--surface2);color:var(--muted);
+  .close{position:absolute;top:16px;right:16px;background:var(--surface2);color:var(--muted);z-index:10;
     width:32px;height:32px;border-radius:9px;font-size:18px;line-height:1;border:1px solid var(--line)}
   .close:hover{color:var(--text)}
+  /* Профиль друга: фон растянут на всё окно, контент поверх */
+  .modal.fp-modal{position:relative}
+  .modal.fp-modal > *{position:relative;z-index:2}
+  .modal.fp-modal > .close{z-index:10}
   .modal-back{margin-bottom:16px}
   .kp-link{display:inline-flex;align-items:center;gap:6px;margin-top:16px;font-size:13.5px;font-weight:600;
     color:var(--accent);text-decoration:none;border:1px solid var(--accent-dim);border-radius:10px;padding:9px 14px;
@@ -1004,7 +1011,7 @@ async function loadLeaderboard(){
       <div class="lb-crown">👑</div>
       <div class="lb-who">
         <div class="lb-dom">${label}</div>
-        <div class="lb-name${nameFxClass(t.cosmetics)}" style="${nameAccentStyle(t.cosmetics)}">${esc(t.avatar||icon)} ${nameBadgeHTML(t.cosmetics)}${esc(t.name||t.handle)}${isMe?'<span class="lb-me">ты</span>':''}</div>
+        <div class="lb-name">${esc(t.avatar||icon)} ${nameHTML(t.cosmetics, t.name||t.handle)}${isMe?'<span class="lb-me">ты</span>':''}</div>
         <div class="lb-handle">@${esc(t.handle)} ${titleBadgeHTML(t.cosmetics)}</div>
       </div>
       <div class="lb-coins">${t.bal} 🟡</div>
@@ -1432,6 +1439,10 @@ function titleBadgeHTML(c){ const t = c && c.title ? shopItem(c.title) : null; r
 function bgClass(c){ const b = c && c.background ? shopItem(c.background) : null; return b ? (' '+b.cls) : ''; }
 function nameFxClass(c){ const f = c && c.nameFx ? shopItem(c.nameFx) : null; return f ? (' '+f.cls) : ''; }
 function nameBadgeHTML(c){ const b = c && c.badge ? shopItem(c.badge) : null; return b ? `<span class="p-nbadge">${b.sym}</span>` : ''; }
+// Имя со значком и эффектом: эффект применяется ТОЛЬКО к тексту имени (не к аватару и не к «ты»)
+function nameHTML(c, name){
+  return `${nameBadgeHTML(c)}<span class="nm-txt${nameFxClass(c)}" style="${nameAccentStyle(c)}">${esc(name||'Игрок')}</span>`;
+}
 function cardColorVar(c){ const cc = c && c.cardColor ? shopItem(c.cardColor) : null; return cc ? `--accent:${cc.color}` : ''; }
 function rouletteSkinOf(c){ return c && c.roulette ? shopItem(c.roulette) : null; }
 function shopPreview(it){
@@ -1580,10 +1591,13 @@ function render(){
       <div class="p-top">
         <div class="avatar${frameClass(profile.cosmetics)}" id="avatarBtn" title="Сменить аватар">${profile.avatar}</div>
         <div class="p-id">
-          <div class="name-row">${nameBadgeHTML(profile.cosmetics)}<input class="p-name${nameFxClass(profile.cosmetics)}" id="nameInp" value="${esc(profile.name)}" maxlength="28" spellcheck="false" style="${nameAccentStyle(profile.cosmetics)}"></div>
-          <input class="p-tag" id="tagInp" value="${esc(profile.tag)}" maxlength="60" spellcheck="false">
+          <div class="name-row">
+            <div class="p-name" id="nameDisp">${nameHTML(profile.cosmetics, profile.name)}</div>
+            <button class="p-edit" id="editProfileBtn" title="Редактировать профиль">✏️</button>
+          </div>
+          <div class="p-tag p-tag-disp" id="tagDisp">${profile.tag?esc(profile.tag):'<span style="opacity:.5">Добавь статус…</span>'}</div>
           ${titleBadgeHTML(profile.cosmetics)}
-          <div class="edit-hint">Нажми на имя, статус или аватар, чтобы изменить</div>
+          <div class="edit-hint">Нажми на карандаш, чтобы изменить имя или статус, на аватар — чтобы сменить его</div>
         </div>
       </div>
       <div class="stats">${statsHTML(games, coinBalance, true)}</div>
@@ -1619,10 +1633,12 @@ function render(){
 }
 
 function wireMain(){
-  const nameInp = document.getElementById('nameInp');
-  const tagInp  = document.getElementById('tagInp');
-  nameInp.addEventListener('change', ()=>{ profile.name = nameInp.value.trim()||'Игрок'; saveProfile(profile); });
-  tagInp.addEventListener('change',  ()=>{ profile.tag = tagInp.value.trim(); saveProfile(profile); });
+  const editBtn = document.getElementById('editProfileBtn');
+  if(editBtn) editBtn.addEventListener('click', openProfileEdit);
+  const nameDisp = document.getElementById('nameDisp');
+  if(nameDisp) nameDisp.addEventListener('click', openProfileEdit);
+  const tagDisp = document.getElementById('tagDisp');
+  if(tagDisp) tagDisp.addEventListener('click', openProfileEdit);
   document.getElementById('avatarBtn').addEventListener('click', openAvatarPicker);
   document.querySelectorAll('.domain-switch button').forEach(b=>{
     b.addEventListener('click', ()=>switchDomain(b.dataset.dom));
@@ -1763,7 +1779,7 @@ async function loadFriendsArea(){
     const meCls = (p.handle===myHandle) ? 'me-tag' : '';
     html += `<div class="fcard ${meCls}" data-idx="${i}">
       <div class="fav${frameClass(p.cosmetics)}">${esc(p.avatar||'🎮')}</div>
-      <div><div class="fn${nameFxClass(p.cosmetics)}" style="${nameAccentStyle(p.cosmetics)}">${nameBadgeHTML(p.cosmetics)}${esc(p.name||'Игрок')}</div>
+      <div><div class="fn">${nameHTML(p.cosmetics, p.name)}${meCls?'<span class="me-badge">ты</span>':''}</div>
       <div class="fm">${(p.items||[]).length} обзоров · @${esc(p.handle)}</div>
       ${titleBadgeHTML(p.cosmetics)}</div>
     </div>`;
@@ -1815,10 +1831,10 @@ function openFriendProfile(p, init){
   let fSt = (init && init.fSt) || 'all';
   showModal(`
     <button class="close" onclick="__close()">×</button>
-    <div class="p-top fp-head${bgClass(p.cosmetics)}" style="margin-bottom:4px">
+    <div class="p-top" style="margin-bottom:4px">
       <div class="avatar${frameClass(p.cosmetics)}" style="cursor:default">${esc(p.avatar||'🎮')}</div>
       <div class="p-id">
-        <div class="fp-name${nameFxClass(p.cosmetics)}" style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:26px;line-height:1.05;${nameAccentStyle(p.cosmetics)}">${nameBadgeHTML(p.cosmetics)}${esc(p.name||'Игрок')}</div>
+        <div class="fp-name" style="font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:26px;line-height:1.05">${nameHTML(p.cosmetics, p.name)}</div>
         <div style="color:var(--muted);font-size:14px;margin-top:3px">${esc(p.tag||'')}</div>
         ${titleBadgeHTML(p.cosmetics)}
         <div class="mono" style="color:var(--muted2);font-size:12px;margin-top:4px">@${esc(p.handle)}</div>
@@ -1829,7 +1845,7 @@ function openFriendProfile(p, init){
       <input type="text" class="search" id="friendSearch" placeholder="Поиск по названию или жанру…" style="max-width:none;width:100%;margin:14px 0 12px" value="${esc(fq)}" autocomplete="off">
       <div id="friendChips">${statusChipsHTML(list, fSt)}</div>` : ''}
     <div id="friendBoard" style="${cardColorVar(p.cosmetics)}"></div>
-  `);
+  `, ('fp-modal'+bgClass(p.cosmetics)));
   const boardEl = document.getElementById('friendBoard');
   function drawFB(){
     fillBoard(boardEl, list, {
@@ -2201,9 +2217,8 @@ function openPublish(){
 }
 
 /* ---------------- Modal helpers ---------------- */
-function showModal(inner){ modal.innerHTML = inner; overlay.classList.add('open'); }
-function closeModal(){ overlay.classList.remove('open'); modal.innerHTML=''; }
-overlay.addEventListener('click', e=>{ if(e.target===overlay) closeModal(); });
+function showModal(inner, modalClass){ modal.className = 'modal' + (modalClass?(' '+modalClass):''); modal.innerHTML = inner; overlay.classList.add('open'); }
+function closeModal(){ overlay.classList.remove('open'); modal.innerHTML=''; modal.className='modal'; }
 document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeModal(); });
 
 // Двухшаговое подтверждение на кнопке (замена системного confirm, который блокируется в песочнице).
@@ -2221,6 +2236,26 @@ function armButton(btn, confirmText, action){
     }
     clearTimeout(timer);
     await action();
+  });
+}
+
+/* ---------------- Profile edit ---------------- */
+function openProfileEdit(){
+  showModal(`<button class="close" onclick="__close()">×</button>
+    <h3>Редактировать профиль</h3>
+    <label>Имя</label>
+    <input type="text" id="epName" maxlength="28" value="${esc(profile.name)}" autocomplete="off">
+    <label>Статус</label>
+    <input type="text" id="epTag" maxlength="60" value="${esc(profile.tag)}" placeholder="напр. Мои обзоры и личный рейтинг" autocomplete="off">
+    <div class="form-actions">
+      <button class="btn ghost" onclick="__close()">Отмена</button>
+      <button class="btn" id="epSave" style="flex:1">Сохранить</button>
+    </div>`);
+  document.getElementById('epSave').addEventListener('click', async ()=>{
+    profile.name = document.getElementById('epName').value.trim() || 'Игрок';
+    profile.tag  = document.getElementById('epTag').value.trim();
+    await saveProfile(profile);
+    closeModal(); render();
   });
 }
 
