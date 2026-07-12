@@ -34,6 +34,40 @@
   .wrap{max-width:940px;margin:0 auto}
   .mono{font-family:'Space Mono',monospace}
 
+  /* ---------- Friends activity sidebar ---------- */
+  .layout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:250px 1fr;gap:22px;align-items:start}
+  .layout > .wrap{max-width:none;margin:0}
+  .activity-side{
+    position:sticky; top:20px;
+    background:linear-gradient(180deg,var(--ink2),var(--surface));
+    border:1px solid var(--line); border-radius:var(--radius);
+    padding:16px; max-height:calc(100vh - 40px); overflow:auto;
+  }
+  .activity-side h3{
+    font-family:'Bricolage Grotesque',sans-serif; font-size:13px; font-weight:800;
+    letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;
+  }
+  .activity-refresh{
+    background:transparent;border:1px solid var(--line);color:var(--muted);
+    font-size:11px;border-radius:8px;padding:3px 8px;margin-bottom:12px;cursor:pointer;
+  }
+  .activity-refresh:hover{color:var(--text);border-color:var(--accent-dim)}
+  .activity-empty{font-size:12.5px;color:var(--muted2);line-height:1.5}
+  .activity-item{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .activity-item:last-child{border-bottom:none}
+  .activity-avatar{
+    width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:19px;flex-shrink:0;
+    background:radial-gradient(circle at 30% 25%,#2f2a45,#191527); border:1px solid var(--line);
+  }
+  .activity-info{min-width:0}
+  .activity-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .activity-game{font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .activity-more{font-size:11px;color:var(--muted2);margin-left:4px}
+  @media(max-width:860px){
+    .layout{grid-template-columns:1fr}
+    .activity-side{position:static;max-height:none;order:2;margin-top:16px}
+  }
+
   /* Domain switch + movies palette */
   .domain-switch{display:flex;gap:6px;margin:0 0 16px;background:var(--ink2);border:1px solid var(--line);
     border-radius:12px;padding:5px;width:fit-content}
@@ -408,11 +442,18 @@
   }
 </style>
 
-<div class="wrap">
-  <div id="app"><div class="loading mono">Загружаю библиотеку…</div></div>
-  <div class="foot">
-    Данные хранятся в этом артефакте и сохраняются между сессиями.
-    &nbsp;·&nbsp; <button id="resetBtn">Очистить всё</button>
+<div class="layout">
+  <aside class="activity-side" id="activitySide">
+    <h3 id="activityTitle">Сейчас играют</h3>
+    <button class="activity-refresh mono" id="activityRefreshBtn">↻ обновить</button>
+    <div id="activityList"><div class="activity-empty mono">Загрузка…</div></div>
+  </aside>
+  <div class="wrap">
+    <div id="app"><div class="loading mono">Загружаю библиотеку…</div></div>
+    <div class="foot">
+      Данные хранятся в этом артефакте и сохраняются между сессиями.
+      &nbsp;·&nbsp; <button id="resetBtn">Очистить всё</button>
+    </div>
   </div>
 </div>
 
@@ -582,6 +623,40 @@ async function listProfiles(){
   }catch(e){ console.error('listProfiles failed', e); return []; }
 }
 
+// Сайдбар "Сейчас играют/смотрят" — показывает друзей с активным статусом
+async function loadFriendsActivity(){
+  const titleEl = document.getElementById('activityTitle');
+  const listEl  = document.getElementById('activityList');
+  if(!titleEl || !listEl) return;
+  const verb = domain==='games' ? 'играют' : 'смотрят';
+  const verbSingle = domain==='games' ? 'играет' : 'смотрит';
+  titleEl.textContent = 'Сейчас ' + verb;
+  listEl.innerHTML = '<div class="activity-empty mono">Загрузка…</div>';
+  const profiles = await listProfiles();
+  const active = [];
+  profiles.forEach(p=>{
+    if(myHandle && p.handle === myHandle) return; // себя не показываем
+    const items = (p.items||[]).filter(it => it && it.status === activeStatus());
+    if(items.length) active.push({ p, items });
+  });
+  if(active.length === 0){
+    listEl.innerHTML = `<div class="activity-empty mono">Пока никто из друзей ничего не ${verbSingle}.</div>`;
+    return;
+  }
+  listEl.innerHTML = active.map(({p, items})=>{
+    const first = esc(items[0].title);
+    const extra = items.length > 1 ? `<span class="activity-more">+${items.length-1}</span>` : '';
+    return `
+      <div class="activity-item">
+        <div class="activity-avatar">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
+        <div class="activity-info">
+          <div class="activity-name">${esc(p.name||p.handle)}</div>
+          <div class="activity-game">${first}${extra}</div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
 /* ---------------- State ---------------- */
 let profile = { name:'Игрок', tag:'Мои обзоры и личный рейтинг', avatar:'🎮' };
 let itemsStore = { games:[], movies:[] };
@@ -603,6 +678,7 @@ function switchDomain(dom){
   searchQuery = ''; statusFilter = 'all'; currentView = 'me';
   document.body.dataset.domain = domain;
   render();
+  loadFriendsActivity();
 }
 
 const AVATARS = ['🎮','👾','🕹️','🎯','🏆','🐉','⚔️','🛸','🍄','💀','🦊','🤖'];
@@ -1449,5 +1525,8 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   const cc = await loadCenterCfg(); if(cc) centerCfg = cc;
   document.body.dataset.domain = domain;
   render();
+  loadFriendsActivity();
+  const activityRefreshBtn = document.getElementById('activityRefreshBtn');
+  if(activityRefreshBtn) activityRefreshBtn.addEventListener('click', loadFriendsActivity);
 })();
 </script>
