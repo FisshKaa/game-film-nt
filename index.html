@@ -736,6 +736,14 @@ function movieUrl(item){
   if(item && item.tmdbId) return `https://www.themoviedb.org/movie/${item.tmdbId}?language=ru`;
   return `https://www.themoviedb.org/search?query=${encodeURIComponent((item&&item.title)||'')}`;
 }
+// Кнопка-ссылка под фильмом: если обложка была взята из Википедии — ведём туда,
+// иначе (обычный случай) — на TMDB.
+function movieLinkHTML(item){
+  if(item && item.wikiUrl){
+    return `<a class="kp-link" href="${esc(item.wikiUrl)}" target="_blank" rel="noopener">📖 Открыть в Википедии ↗</a>`;
+  }
+  return `<a class="kp-link" href="${movieUrl(item)}" target="_blank" rel="noopener">🎬 Открыть на TMDB ↗</a>`;
+}
 // Кэш карты жанров TMDB {id: 'название'}
 let tmdbGenreMap = null;
 async function tmdbGenres(){
@@ -843,7 +851,8 @@ async function fetchMovieOptions(title){
       tmdbId: m.id || null,
       title: m.title || m.original_title || '',
       year: (m.release_date||'').slice(0,4),
-      genre: (m.genre_ids||[]).map(id=>map[id]).filter(Boolean).slice(0,2).join(', ')
+      genre: (m.genre_ids||[]).map(id=>map[id]).filter(Boolean).slice(0,2).join(', '),
+      source: 'tmdb'
     }));
   }catch(e){ return []; }
 }
@@ -868,7 +877,8 @@ async function fetchGameOptions(title){
             cover: pg.thumbnail.source, thumb: pg.thumbnail.source,
             title: pg.title || '',
             wikiUrl: `https://${lang}.wikipedia.org/?curid=${pg.pageid}`,
-            qid: (pg.pageprops && pg.pageprops.wikibase_item) || null
+            qid: (pg.pageprops && pg.pageprops.wikibase_item) || null,
+            source: 'wiki'
           });
         }
       }
@@ -2078,14 +2088,27 @@ function openForm(editId){
     btn.disabled = true; btn.textContent = '…';
     optsBox.hidden = false; optsBox.innerHTML = '<div class="cover-opt-empty">ищу варианты…</div>';
     let opts = [];
-    try{ opts = (domain === 'movies') ? await fetchMovieOptions(t) : await fetchGameOptions(t); }catch(err){}
+    try{
+      if(domain === 'movies'){
+        // Для фильмов TMDB — основной источник, Википедия — доп. вариант (особенно когда
+        // TMDB недоступен у части пользователей). Показываем оба списка вместе.
+        const [tmdbOpts, wikiOpts] = await Promise.all([
+          fetchMovieOptions(t).catch(()=>[]),
+          fetchGameOptions(t).catch(()=>[])
+        ]);
+        opts = [...tmdbOpts, ...wikiOpts];
+      } else {
+        opts = await fetchGameOptions(t);
+      }
+    }catch(err){}
     if(!opts.length){
       optsBox.innerHTML = '<div class="cover-opt-empty">Ничего не нашлось — впиши название точнее или задай обложку вручную.</div>';
     } else {
       optsBox.innerHTML = opts.map((o,i)=>{
         const cap = [o.title, o.year].filter(Boolean).join(' · ');
+        const srcTag = (domain==='movies' && o.source) ? (o.source==='wiki' ? '📖 ' : '🎬 ') : '';
         return `<div class="cover-opt" data-i="${i}"><img src="${esc(o.thumb||o.cover)}" alt="" loading="lazy"
-          onerror="this.parentNode.style.display='none'"><div class="co-cap">${esc(cap)||'—'}</div></div>`;
+          onerror="this.parentNode.style.display='none'"><div class="co-cap">${srcTag}${esc(cap)||'—'}</div></div>`;
       }).join('');
       optsBox.querySelectorAll('.cover-opt').forEach(el=>{
         el.addEventListener('click', ()=>{
@@ -2142,6 +2165,17 @@ async function submitForm(editId, getData){
           if(!data.cover && r.cover) data.cover = r.cover;
           if(!data.tmdbId && r.tmdbId) data.tmdbId = r.tmdbId;
           if(!data.genre && r.genre) data.genre = r.genre;
+        }
+        // TMDB иногда недоступен (заблокирован у части пользователей) или не находит постер —
+        // в этом случае берём обложку из Википедии как запасной источник.
+        if(!data.cover){
+          const rw = await fetchGameCover(title);
+          if(rw && rw.cover){
+            data.cover = rw.cover;
+            if(!data.wikiUrl) data.wikiUrl = rw.wikiUrl;
+            if(!data.qid) data.qid = rw.qid;
+            if(!data.genre && rw.qid){ const gnr = await fetchWikidataGenre(rw.qid); if(gnr) data.genre = gnr; }
+          }
         }
       }
     } else {
@@ -2225,7 +2259,7 @@ function openDetail(id, list, readonly, onBack, backLabel){
       </div>
     </div>
     <div class="rd-body ${g.review?'':'empty'}">${g.review?esc(g.review):'Обзор пока не написан.'}</div>
-    ${domain==='movies'?`<a class="kp-link" href="${movieUrl(g)}" target="_blank" rel="noopener">🎬 Открыть на TMDB ↗</a>`:''}
+    ${domain==='movies'?movieLinkHTML(g):''}
     ${domain==='games'?`<a class="kp-link" href="${gameUrl(g)}" target="_blank" rel="noopener">📖 Открыть в Википедии ↗</a>`:''}
     ${readonly ? '' : `<div class="rd-actions">
       <button class="btn ghost sm" id="editG">Редактировать</button>
