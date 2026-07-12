@@ -35,11 +35,11 @@
   .mono{font-family:'Space Mono',monospace}
 
   /* ---------- Cosmetics + shop ---------- */
-  .avatar.fr-gold{box-shadow:0 0 0 3px #f5b942, 0 0 14px #f5b94288}
-  .avatar.fr-neon{box-shadow:0 0 0 3px #22d3ee, 0 0 16px #22d3eeaa}
-  .avatar.fr-fire{animation:frFire 1.6s ease-in-out infinite alternate}
+  .fr-gold{box-shadow:0 0 0 3px #f5b942, 0 0 14px #f5b94288}
+  .fr-neon{box-shadow:0 0 0 3px #22d3ee, 0 0 16px #22d3eeaa}
+  .fr-fire{animation:frFire 1.6s ease-in-out infinite alternate}
   @keyframes frFire{from{box-shadow:0 0 0 3px #fb923c,0 0 10px #f9731666}to{box-shadow:0 0 0 3px #f87171,0 0 22px #ef4444aa}}
-  .avatar.fr-rainbow{animation:frRainbow 4s linear infinite}
+  .fr-rainbow{animation:frRainbow 4s linear infinite}
   @keyframes frRainbow{0%{box-shadow:0 0 0 3px #f87171,0 0 16px #f8717188}25%{box-shadow:0 0 0 3px #fbbf24,0 0 16px #fbbf2488}50%{box-shadow:0 0 0 3px #34d399,0 0 16px #34d39988}75%{box-shadow:0 0 0 3px #38bdf8,0 0 16px #38bdf888}100%{box-shadow:0 0 0 3px #a78bfa,0 0 16px #a78bfa88}}
   .p-title{display:inline-block;margin-top:6px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--line);color:var(--text)}
   .lb-handle .p-title{margin-top:0;font-size:10px;padding:1px 7px}
@@ -1680,9 +1680,10 @@ async function loadFriendsArea(){
   profiles.forEach((p,i)=>{
     const meCls = (p.handle===myHandle) ? 'me-tag' : '';
     html += `<div class="fcard ${meCls}" data-idx="${i}">
-      <div class="fav">${esc(p.avatar||'🎮')}</div>
-      <div><div class="fn">${esc(p.name||'Игрок')}</div>
-      <div class="fm">${(p.items||[]).length} обзоров · @${esc(p.handle)}</div></div>
+      <div class="fav${frameClass(p.cosmetics)}">${esc(p.avatar||'🎮')}</div>
+      <div><div class="fn" style="${nameAccentStyle(p.cosmetics)}">${esc(p.name||'Игрок')}</div>
+      <div class="fm">${(p.items||[]).length} обзоров · @${esc(p.handle)}</div>
+      ${titleBadgeHTML(p.cosmetics)}</div>
     </div>`;
   });
   html += `</div>`;
