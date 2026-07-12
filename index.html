@@ -694,25 +694,34 @@ async function fetchMovieCover(title){
     return { cover, tmdbId: m.id || null };
   }catch(e){ console.error('tmdb fetch failed', e); return null; }
 }
-// Ищет обложку игры через API Википедии (заглавное изображение статьи). Без ключа, CORS открыт.
+// Обложка игры из Википедии (без ключа, CORS открыт). Возвращает {cover, wikiUrl} или null.
+// Ищем несколько кандидатов и берём первую статью, у которой есть заглавная картинка.
 async function fetchGameCover(title){
   if(!title) return null;
   for(const lang of ['ru','en']){
     try{
       const url = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*`
-        + `&generator=search&gsrsearch=${encodeURIComponent(title)}&gsrlimit=1`
+        + `&redirects=1&generator=search&gsrsearch=${encodeURIComponent(title)}&gsrlimit=5`
         + `&prop=pageimages&piprop=thumbnail&pithumbsize=500`;
       const res = await fetch(url);
       if(!res.ok) continue;
       const data = await res.json();
       const pages = data && data.query && data.query.pages;
-      if(pages){
-        const first = Object.values(pages)[0];
-        if(first && first.thumbnail && first.thumbnail.source) return { cover: first.thumbnail.source };
+      if(!pages) continue;
+      const arr = Object.values(pages).sort((a,b)=>(a.index||0)-(b.index||0));
+      for(const pg of arr){
+        if(pg.thumbnail && pg.thumbnail.source){
+          return { cover: pg.thumbnail.source, wikiUrl: `https://${lang}.wikipedia.org/?curid=${pg.pageid}` };
+        }
       }
     }catch(e){}
   }
   return null;
+}
+// Ссылка на игру: статья в Википедии (если нашли) или поиск по названию
+function gameUrl(item){
+  if(item && item.wikiUrl) return item.wikiUrl;
+  return `https://ru.wikipedia.org/w/index.php?search=${encodeURIComponent((item&&item.title)||'')}`;
 }
 const KEY_CENTER = 'roulette-center';
 async function loadCenterCfg(){
@@ -1835,17 +1844,18 @@ async function submitForm(editId, getCover){
     review: document.getElementById('fReview').value.trim(),
     cover: getCover ? getCover() : '',
   };
-  // Авто-обложка, если вручную не задана: фильмы → TMDB, игры → Википедия
-  if(!data.cover || domain==='movies'){
+  // Авто-обложка и ссылка: фильмы → TMDB, игры → Википедия. Пробуем всегда,
+  // чтобы получить ссылку/id даже если обложка задана вручную (её не перезаписываем).
+  {
     const saveBtn = document.getElementById('saveGame');
     const prevLabel = saveBtn ? saveBtn.textContent : '';
     if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Ищу обложку…'; }
     if(domain === 'movies'){
       const r = await fetchMovieCover(title);
       if(r){ if(!data.cover && r.cover) data.cover = r.cover; if(r.tmdbId) data.tmdbId = r.tmdbId; }
-    } else if(!data.cover){
+    } else {
       const r = await fetchGameCover(title);
-      if(r && r.cover) data.cover = r.cover;
+      if(r){ if(!data.cover && r.cover) data.cover = r.cover; if(r.wikiUrl) data.wikiUrl = r.wikiUrl; }
     }
     if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = prevLabel; }
   }
@@ -1909,6 +1919,7 @@ function openDetail(id, list, readonly, onBack, backLabel){
     </div>
     <div class="rd-body ${g.review?'':'empty'}">${g.review?esc(g.review):'Обзор пока не написан.'}</div>
     ${domain==='movies'?`<a class="kp-link" href="${movieUrl(g)}" target="_blank" rel="noopener">🎬 Открыть на TMDB ↗</a>`:''}
+    ${domain==='games'?`<a class="kp-link" href="${gameUrl(g)}" target="_blank" rel="noopener">📖 Открыть в Википедии ↗</a>`:''}
     ${readonly ? '' : `<div class="rd-actions">
       <button class="btn ghost sm" id="editG">Редактировать</button>
       <button class="btn ghost sm" id="delG" style="color:var(--s)">Удалить</button>
