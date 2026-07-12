@@ -159,6 +159,9 @@
   }
 
   /* Domain switch + movies palette */
+  .topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+  .topbar .domain-switch{margin:0}
+  .top-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
   .domain-switch{display:flex;gap:6px;margin:0 0 16px;background:var(--ink2);border:1px solid var(--line);
     border-radius:12px;padding:5px;width:fit-content}
   .domain-switch button{background:transparent;color:var(--muted);font-size:14px;font-weight:700;
@@ -1488,9 +1491,15 @@ function tierBoardHTML(list, readonly, hideEmpty){
 
 function render(){
   let html = `
-    <div class="domain-switch">
-      <button data-dom="games" class="${domain==='games'?'active':''}">🎮 Игры</button>
-      <button data-dom="movies" class="${domain==='movies'?'active':''}">🎬 Фильмы</button>
+    <div class="topbar">
+      <div class="domain-switch">
+        <button data-dom="games" class="${domain==='games'?'active':''}">🎮 Игры</button>
+        <button data-dom="movies" class="${domain==='movies'?'active':''}">🎬 Фильмы</button>
+      </div>
+      <div class="top-actions">
+        ${myHandle?`<button class="btn ghost sm" id="shareLinkBtn" title="Скопировать прямую ссылку на профиль">🔗 Ссылка</button>`:''}
+        <button class="btn ghost sm" id="shopBtn">🛒 Магазин</button>
+      </div>
     </div>
     <section class="profile">
       <div class="p-top">
@@ -1517,8 +1526,6 @@ function render(){
         <h2>Рейтинг</h2>
         <input type="text" class="search" id="searchInp" placeholder="Поиск по названию или жанру…" value="${esc(searchQuery)}" autocomplete="off">
         <button class="btn ghost" id="publishBtn">${myHandle?'Обновить в витрине':'Опубликовать профиль'}</button>
-        ${myHandle?`<button class="btn ghost" id="shareLinkBtn" title="Скопировать прямую ссылку на профиль">🔗 Ссылка</button>`:''}
-        <button class="btn ghost" id="shopBtn">🛒 Магазин</button>
         <button class="btn" id="addBtn">+ Новый обзор</button>
       </div>
       <div id="statusChips">${statusChipsHTML(games, statusFilter)}</div>
