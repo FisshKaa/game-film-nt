@@ -1389,6 +1389,7 @@ function render(){
         <h2>Рейтинг</h2>
         <input type="text" class="search" id="searchInp" placeholder="Поиск по названию или жанру…" value="${esc(searchQuery)}" autocomplete="off">
         <button class="btn ghost" id="publishBtn">${myHandle?'Обновить в витрине':'Опубликовать профиль'}</button>
+        ${myHandle?`<button class="btn ghost" id="shareLinkBtn" title="Скопировать прямую ссылку на профиль">🔗 Ссылка</button>`:''}
         <button class="btn" id="addBtn">+ Новый обзор</button>
       </div>
       <div id="statusChips">${statusChipsHTML(games, statusFilter)}</div>
@@ -1422,6 +1423,25 @@ function wireMain(){
   if(addBtn) addBtn.addEventListener('click', ()=>openForm());
   const pubBtn = document.getElementById('publishBtn');
   if(pubBtn) pubBtn.addEventListener('click', openPublish);
+  const shareBtn = document.getElementById('shareLinkBtn');
+  if(shareBtn) shareBtn.addEventListener('click', async ()=>{
+    const url = shareLink();
+    try{
+      await navigator.clipboard.writeText(url);
+      const orig = shareBtn.textContent;
+      shareBtn.textContent = 'Скопировано!';
+      setTimeout(()=>{ shareBtn.textContent = orig; }, 1500);
+    }catch(e){
+      showModal(`
+        <button class="close" onclick="__close()">×</button>
+        <h3>Ссылка на профиль</h3>
+        <p class="comm-note">Не удалось скопировать автоматически — скопируй вручную.</p>
+        <input type="text" id="shareLinkInp" readonly value="${esc(url)}">
+      `);
+      const inp = document.getElementById('shareLinkInp');
+      if(inp){ inp.focus(); inp.select(); }
+    }
+  });
   const refBtn = document.getElementById('refreshFriends');
   if(refBtn) refBtn.addEventListener('click', loadFriendsArea);
   const searchInp = document.getElementById('searchInp');
@@ -1539,6 +1559,40 @@ async function loadFriendsArea(){
   area.querySelectorAll('.fcard').forEach(c=>{
     c.addEventListener('click', ()=>openFriendProfile(profiles[+c.dataset.idx]));
   });
+}
+
+// Прямая ссылка вида ?u=ник (и &d=movies, если домен не games по умолчанию)
+function shareLink(){
+  const url = new URL(location.href);
+  url.search = '';
+  url.searchParams.set('u', myHandle);
+  if(domain !== 'games') url.searchParams.set('d', domain);
+  return url.toString();
+}
+
+// Если в адресе есть ?u=ник — открывает профиль этого игрока поверх текущего интерфейса,
+// подтягивая его прямо из public_profiles (без похода в общую витрину).
+async function openSharedProfileFromURL(){
+  let params;
+  try{ params = new URLSearchParams(location.search); }catch(e){ return; }
+  const handle = (params.get('u')||'').trim();
+  if(!handle) return;
+  const dParam = params.get('d');
+  const dom = (dParam && DOMAINS[dParam]) ? dParam : domain;
+  if(dom !== domain) await switchDomain(dom);
+  if(myHandle && handle === myHandle) return; // это ссылка на самого себя — ничего поверх не открываем
+  try{
+    const { data, error } = await sb.from('public_profiles').select('*').eq('id', dom+':'+handle).maybeSingle();
+    if(error || !data){
+      showModal(`
+        <button class="close" onclick="__close()">×</button>
+        <h3>Профиль не найден</h3>
+        <p class="comm-note">Ник «${esc(handle)}» ещё не публиковал профиль в разделе «${dom==='movies'?'Фильмы':'Игры'}», либо ссылка устарела.</p>
+      `);
+      return;
+    }
+    openFriendProfile(data);
+  }catch(e){ console.error('openSharedProfileFromURL failed', e); }
 }
 
 function openFriendProfile(p, init){
@@ -2224,5 +2278,6 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   if(activityRefreshBtn) activityRefreshBtn.addEventListener('click', loadFriendsActivity);
   const reviewsRefreshBtn = document.getElementById('reviewsRefreshBtn');
   if(reviewsRefreshBtn) reviewsRefreshBtn.addEventListener('click', loadFriendsReviews);
+  openSharedProfileFromURL();
 })();
 </script>
