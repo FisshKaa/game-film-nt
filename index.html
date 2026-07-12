@@ -34,6 +34,28 @@
   .wrap{max-width:940px;margin:0 auto}
   .mono{font-family:'Space Mono',monospace}
 
+  /* ---------- Leaderboard "Самый добрий" ---------- */
+  .leaderboard{margin-top:30px}
+  .lb-title{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:15px;
+    text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 2px 12px;
+    display:flex;align-items:center;gap:10px}
+  .lb-title::after{content:'';flex:1;height:1px;background:var(--line)}
+  .lb-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .lb-card{background:linear-gradient(180deg,rgba(245,185,66,.08),transparent);
+    border:1px solid var(--accent-dim);border-radius:var(--radius);padding:16px 18px;
+    display:flex;align-items:center;gap:14px;min-height:78px}
+  .lb-card .lb-dom{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+  .lb-crown{font-size:30px;line-height:1;flex-shrink:0}
+  .lb-who{flex:1;min-width:0}
+  .lb-name{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:18px;line-height:1.1;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .lb-handle{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted2)}
+  .lb-coins{font-family:'Space Mono',monospace;font-weight:700;font-size:20px;color:var(--accent);white-space:nowrap}
+  .lb-empty{color:var(--muted2);font-size:13px;font-style:italic}
+  .lb-me{font-family:'Space Mono',monospace;font-size:10px;background:var(--accent-dim);color:#12121a;
+    padding:1px 6px;border-radius:20px;margin-left:8px;vertical-align:middle}
+  @media(max-width:560px){ .lb-grid{grid-template-columns:1fr} }
+
   /* ---------- Friends activity sidebar ---------- */
   .layout{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:250px 1fr 270px;gap:22px;align-items:start}
   .layout > .wrap{max-width:none;margin:0}
@@ -494,6 +516,7 @@
   </aside>
   <div class="wrap">
     <div id="app"><div class="loading mono">Загружаю библиотеку…</div></div>
+    <div id="leaderboard" class="leaderboard"></div>
     <div class="foot">
       Данные хранятся в этом артефакте и сохраняются между сессиями.
       &nbsp;·&nbsp; <button id="resetBtn">Очистить всё</button>
@@ -672,6 +695,46 @@ async function listProfiles(){
   }catch(e){ console.error('listProfiles failed', e); return []; }
 }
 
+// Таблица "Самый добрий": топ-1 по балансу отдельно для игр и фильмов
+async function loadLeaderboard(){
+  const el = document.getElementById('leaderboard');
+  if(!el) return;
+  let rows = [];
+  try{
+    const { data, error } = await sb.from('public_profiles').select('domain,handle,name,avatar,balance');
+    if(error) throw error;
+    rows = data || [];
+  }catch(e){ console.error('leaderboard failed', e); el.innerHTML = ''; return; }
+
+  const topFor = dom => rows
+    .filter(r=>r.domain===dom)
+    .map(r=>({ ...r, bal:(typeof r.balance==='number'?r.balance:COIN_START) }))
+    .sort((a,b)=>b.bal-a.bal)[0] || null;
+
+  const card = (dom, label, icon) => {
+    const t = topFor(dom);
+    if(!t) return `<div class="lb-card"><div class="lb-crown">👑</div>
+      <div class="lb-who"><div class="lb-dom">${label}</div><div class="lb-empty">Пока никто не опубликован</div></div></div>`;
+    const isMe = handleStore[dom] && t.handle === handleStore[dom];
+    return `<div class="lb-card">
+      <div class="lb-crown">👑</div>
+      <div class="lb-who">
+        <div class="lb-dom">${label}</div>
+        <div class="lb-name">${esc(t.avatar||icon)} ${esc(t.name||t.handle)}${isMe?'<span class="lb-me">ты</span>':''}</div>
+        <div class="lb-handle">@${esc(t.handle)}</div>
+      </div>
+      <div class="lb-coins">${t.bal} 🟡</div>
+    </div>`;
+  };
+
+  el.innerHTML = `
+    <div class="lb-title">👑 Самый добрий</div>
+    <div class="lb-grid">
+      ${card('games','🎮 Игры','🎮')}
+      ${card('movies','🎬 Фильмы','🎬')}
+    </div>`;
+}
+
 /* ---------------- Добрикоин: баланс ----------------
    Источник истины — Supabase (public_profiles.balance), т.к. баланс должен обновляться
    даже когда его меняет другой человек (выигрыш/проигрыш ставки на чужом устройстве).
@@ -700,6 +763,7 @@ async function addCoins(delta){
   await persistCoinBalance(coinBalance);
   const badge = document.getElementById('coinStatNum');
   if(badge) badge.textContent = coinBalance;
+  loadLeaderboard();
 }
 
 /* ---------------- Добрикоин: ставки на "Сейчас играю/смотрю" ---------------- */
@@ -812,6 +876,7 @@ async function resolveBet(betId, win){
     await sb.from('coin_bets').update({ status: win?'won':'lost' }).eq('id', betId);
   }catch(e){ console.error('resolveBet failed', e); }
   loadBetsToResolve();
+  loadLeaderboard();
 }
 
 // Сайдбар "Сейчас играют/смотрят" — показывает друзей с активным статусом
@@ -997,19 +1062,21 @@ function statusChipsHTML(list, active){
   return `<div class="chips">${chips}</div>`;
 }
 
-function statsHTML(list){
+function statsHTML(list, coin, live){
   const count = list.length;
   const rated = list.filter(g => g.status === doneStatus());
   const avg = rated.length ? (rated.reduce((a,g)=>a+g.score,0)/rated.length) : 0;
   const tierIdx = k => TIERS.findIndex(t=>t.key===k);
   const topTier = rated.length ? rated.reduce((best,g)=>{ const k=tierOf(g.score).key; return tierIdx(k) < tierIdx(best) ? k : best; }, 'F') : '—';
   const played = rated.length;
+  const coinStat = (coin === null || coin === undefined) ? '' :
+    `<div class="stat"><div class="num"${live?' id="coinStatNum"':''}>${coin}</div><div class="lab">🟡 Добрикоин</div></div>`;
   return `
     <div class="stat"><div class="num">${count}</div><div class="lab">Обзоров</div></div>
     <div class="stat"><div class="num">${rated.length?avg.toFixed(1):'—'}</div><div class="lab">Средний балл</div></div>
     <div class="stat"><div class="num">${topTier}</div><div class="lab">Высший тир</div></div>
     <div class="stat"><div class="num">${played}</div><div class="lab">${esc(L().statPlayed)}</div></div>
-    <div class="stat"><div class="num" id="coinStatNum">${coinBalance}</div><div class="lab">🟡 Добрикоин</div></div>`;
+    ${coinStat}`;
 }
 
 // Одна карточка игры. opts: {readonly, showStatus, statusDot, noReviewTag}
@@ -1075,7 +1142,7 @@ function render(){
           <div class="edit-hint">Нажми на имя, статус или аватар, чтобы изменить</div>
         </div>
       </div>
-      <div class="stats">${statsHTML(games)}</div>
+      <div class="stats">${statsHTML(games, coinBalance, true)}</div>
     </section>
 
     <div class="nav">
@@ -1256,7 +1323,7 @@ function openFriendProfile(p, init){
         <div class="mono" style="color:var(--muted2);font-size:12px;margin-top:4px">@${esc(p.handle)}</div>
       </div>
     </div>
-    <div class="stats fmodal-stats">${statsHTML(list)}</div>
+    <div class="stats fmodal-stats">${statsHTML(list, (typeof p.balance==='number'?p.balance:COIN_START), false)}</div>
     ${list.length ? `
       <input type="text" class="search" id="friendSearch" placeholder="Поиск по названию или жанру…" style="max-width:none;width:100%;margin:14px 0 12px" value="${esc(fq)}" autocomplete="off">
       <div id="friendChips">${statusChipsHTML(list, fSt)}</div>` : ''}
@@ -1591,11 +1658,11 @@ function openPublish(){
       if(myHandle && myHandle!==raw) await unpublishProfile(myHandle);
       await publishProfile(raw);
       myHandle = raw; await saveHandle(myHandle);
-      closeModal(); render();
+      closeModal(); render(); loadLeaderboard();
     }catch(e){ err.textContent='Не удалось опубликовать. Попробуй ещё раз.'; }
   });
   armButton(document.getElementById('unpubBtn'), 'Точно убрать?', async ()=>{
-    await unpublishProfile(myHandle); myHandle=''; await saveHandle(''); closeModal(); render();
+    await unpublishProfile(myHandle); myHandle=''; await saveHandle(''); closeModal(); render(); loadLeaderboard();
   });
 }
 
@@ -1819,6 +1886,7 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   render();
   loadFriendsActivity();
   loadFriendsReviews();
+  loadLeaderboard();
   const activityRefreshBtn = document.getElementById('activityRefreshBtn');
   if(activityRefreshBtn) activityRefreshBtn.addEventListener('click', loadFriendsActivity);
   const reviewsRefreshBtn = document.getElementById('reviewsRefreshBtn');
