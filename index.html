@@ -35,15 +35,15 @@
   .mono{font-family:'Space Mono',monospace}
 
   /* ---------- Friends activity sidebar ---------- */
-  .layout{max-width:1180px;margin:0 auto;display:grid;grid-template-columns:250px 1fr;gap:22px;align-items:start}
+  .layout{max-width:1400px;margin:0 auto;display:grid;grid-template-columns:250px 1fr 270px;gap:22px;align-items:start}
   .layout > .wrap{max-width:none;margin:0}
-  .activity-side{
+  .activity-side, .reviews-side{
     position:sticky; top:20px;
     background:linear-gradient(180deg,var(--ink2),var(--surface));
     border:1px solid var(--line); border-radius:var(--radius);
     padding:16px; max-height:calc(100vh - 40px); overflow:auto;
   }
-  .activity-side h3{
+  .activity-side h3, .reviews-side h3{
     font-family:'Bricolage Grotesque',sans-serif; font-size:13px; font-weight:800;
     letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin-bottom:12px;
   }
@@ -63,9 +63,25 @@
   .activity-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-game{font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-more{font-size:11px;color:var(--muted2);margin-left:4px}
-  @media(max-width:860px){
+
+  /* ---------- Friends reviews sidebar ---------- */
+  .review-item{padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px;transition:background .12s}
+  .review-item:last-child{border-bottom:none}
+  .review-item:hover{background:var(--surface2)}
+  .review-top{display:flex;align-items:center;gap:8px;margin-bottom:5px}
+  .review-name{flex:1;min-width:0;font-weight:700;font-size:12.5px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .review-score{font-family:'Space Mono',monospace;font-weight:700;font-size:13px;flex-shrink:0}
+  .review-title{font-size:13px;font-weight:700;color:var(--accent);margin-bottom:3px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .review-snippet{font-size:12px;color:var(--muted);line-height:1.4;
+    display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+
+  @media(max-width:1180px){
     .layout{grid-template-columns:1fr}
-    .activity-side{position:static;max-height:none;order:2;margin-top:16px}
+    .activity-side, .reviews-side{position:static;max-height:none;margin-top:16px}
+    .activity-side{order:2}
+    .layout > .wrap{order:1}
+    .reviews-side{order:3}
   }
 
   /* Domain switch + movies palette */
@@ -455,6 +471,11 @@
       &nbsp;·&nbsp; <button id="resetBtn">Очистить всё</button>
     </div>
   </div>
+  <aside class="reviews-side" id="reviewsSide">
+    <h3 id="reviewsTitle">Недавние обзоры</h3>
+    <button class="activity-refresh mono" id="reviewsRefreshBtn">↻ обновить</button>
+    <div id="reviewsList"><div class="activity-empty mono">Загрузка…</div></div>
+  </aside>
 </div>
 
 <!-- Modal root -->
@@ -657,6 +678,48 @@ async function loadFriendsActivity(){
   }).join('');
 }
 
+// Сайдбар "Недавние обзоры" — обзоры друзей, клик открывает полный обзор (как через "Друзья")
+async function loadFriendsReviews(){
+  const listEl = document.getElementById('reviewsList');
+  if(!listEl) return;
+  listEl.innerHTML = '<div class="activity-empty mono">Загрузка…</div>';
+  const profiles = await listProfiles();
+  const reviews = [];
+  profiles.forEach(p=>{
+    if(myHandle && p.handle === myHandle) return; // себя не показываем
+    (p.items||[]).forEach(it=>{
+      if(it && it.status === doneStatus() && it.review && it.review.trim()) reviews.push({ p, item: it });
+    });
+  });
+  reviews.sort((a,b)=>(b.item.added||0)-(a.item.added||0));
+  const top = reviews.slice(0, 12);
+  if(top.length === 0){
+    listEl.innerHTML = `<div class="activity-empty mono">Пока нет обзоров от друзей.</div>`;
+    return;
+  }
+  listEl.innerHTML = top.map(({p, item}, idx)=>{
+    const t = tierOf(item.score);
+    const raw = item.review.trim();
+    const snippet = esc(raw.length > 110 ? raw.slice(0,110)+'…' : raw);
+    return `
+      <div class="review-item" data-idx="${idx}">
+        <div class="review-top">
+          <div class="activity-avatar" style="width:26px;height:26px;font-size:13px">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
+          <div class="review-name">${esc(p.name||p.handle)}</div>
+          <div class="review-score" style="color:${t.color}">${item.score.toFixed(1)}</div>
+        </div>
+        <div class="review-title">${esc(item.title)}</div>
+        <div class="review-snippet">${snippet}</div>
+      </div>`;
+  }).join('');
+  listEl.querySelectorAll('.review-item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const { p, item } = top[+el.dataset.idx];
+      openDetail(item.id, p.items, true);
+    });
+  });
+}
+
 /* ---------------- State ---------------- */
 let profile = { name:'Игрок', tag:'Мои обзоры и личный рейтинг', avatar:'🎮' };
 let itemsStore = { games:[], movies:[] };
@@ -679,6 +742,7 @@ function switchDomain(dom){
   document.body.dataset.domain = domain;
   render();
   loadFriendsActivity();
+  loadFriendsReviews();
 }
 
 const AVATARS = ['🎮','👾','🕹️','🎯','🏆','🐉','⚔️','🛸','🍄','💀','🦊','🤖'];
@@ -1526,7 +1590,10 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   document.body.dataset.domain = domain;
   render();
   loadFriendsActivity();
+  loadFriendsReviews();
   const activityRefreshBtn = document.getElementById('activityRefreshBtn');
   if(activityRefreshBtn) activityRefreshBtn.addEventListener('click', loadFriendsActivity);
+  const reviewsRefreshBtn = document.getElementById('reviewsRefreshBtn');
+  if(reviewsRefreshBtn) reviewsRefreshBtn.addEventListener('click', loadFriendsReviews);
 })();
 </script>
