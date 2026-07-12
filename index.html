@@ -59,10 +59,31 @@
     width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:19px;flex-shrink:0;
     background:radial-gradient(circle at 30% 25%,#2f2a45,#191527); border:1px solid var(--line);
   }
-  .activity-info{min-width:0}
+  .activity-info{min-width:0;flex:1}
   .activity-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-game{font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-more{font-size:11px;color:var(--muted2);margin-left:4px}
+  .activity-pot{font-size:10.5px;color:#f5c451;margin-top:2px}
+  .bet-btn{
+    flex-shrink:0;background:var(--ink);border:1px solid var(--line);border-radius:9px;
+    width:30px;height:30px;font-size:14px;cursor:pointer;transition:border-color .15s,transform .15s;
+  }
+  .bet-btn:hover{border-color:var(--accent-dim);transform:translateY(-1px)}
+  .resolve-box{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .resolve-box h4{font-family:'Bricolage Grotesque',sans-serif;font-size:12px;font-weight:800;
+    letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+  .resolve-item{padding:8px 0;border-bottom:1px solid var(--line)}
+  .resolve-item:last-child{border-bottom:none}
+  .resolve-top{font-size:12.5px;color:var(--text);margin-bottom:2px}
+  .resolve-top b{color:var(--accent)}
+  .resolve-note{font-size:11.5px;color:var(--muted);font-style:italic;margin-bottom:6px}
+  .resolve-actions{display:flex;gap:6px}
+  .resolve-actions button{
+    flex:1;font-size:11px;padding:5px 6px;border-radius:7px;border:1px solid var(--line);
+    background:var(--ink);color:var(--text);cursor:pointer;
+  }
+  .resolve-win:hover{border-color:var(--c);color:var(--c)}
+  .resolve-lose:hover{border-color:var(--s);color:var(--s)}
 
   /* ---------- Friends reviews sidebar ---------- */
   .review-item{padding:10px 0;border-bottom:1px solid var(--line);cursor:pointer;border-radius:8px;transition:background .12s}
@@ -129,7 +150,7 @@
   .edit-hint{font-size:11px;color:var(--muted2);margin-top:2px}
 
   .stats{
-    display:grid; grid-template-columns:repeat(4,1fr); gap:10px;
+    display:grid; grid-template-columns:repeat(5,1fr); gap:10px;
     margin-top:20px; position:relative;
   }
   .stat{
@@ -395,7 +416,7 @@
 
   label{display:block;font-size:12px;color:var(--muted);text-transform:uppercase;
     letter-spacing:.06em;margin:14px 0 6px;font-weight:600}
-  input[type=text],textarea,select{
+  input[type=text],input[type=number],textarea,select{
     width:100%;background:var(--ink);border:1px solid var(--line);border-radius:10px;
     color:var(--text);font-family:inherit;font-size:15px;padding:11px 13px;outline:none;
     transition:border-color .15s;
@@ -644,6 +665,125 @@ async function listProfiles(){
   }catch(e){ console.error('listProfiles failed', e); return []; }
 }
 
+/* ---------------- Добрикоин: баланс ----------------
+   Источник истины — Supabase (public_profiles.balance), т.к. баланс должен обновляться
+   даже когда его меняет другой человек (выигрыш/проигрыш ставки на чужом устройстве).
+   Локальный localStorage — просто кэш на случай, если профиль ещё не опубликован. */
+async function loadCoinBalance(){
+  if(myHandle){
+    try{
+      const { data } = await sb.from('public_profiles').select('balance').eq('id', domain+':'+myHandle).maybeSingle();
+      if(data && typeof data.balance === 'number') return data.balance;
+    }catch(e){ console.error('loadCoinBalance remote failed', e); }
+  }
+  try{ const r = await window.storage.get('coin:'+domain, false); if(r) return parseInt(r.value,10) || COIN_START; }
+  catch(e){}
+  return COIN_START;
+}
+async function persistCoinBalance(val){
+  try{ await window.storage.set('coin:'+domain, String(val), false); }catch(e){}
+  if(myHandle){
+    try{ await sb.from('public_profiles').update({ balance: val }).eq('id', domain+':'+myHandle); }
+    catch(e){ console.error('persistCoinBalance remote failed', e); }
+  }
+}
+async function addCoins(delta){
+  coinBalance = Math.max(0, coinBalance + delta);
+  balanceStore[domain] = coinBalance;
+  await persistCoinBalance(coinBalance);
+  const badge = document.getElementById('coinStatNum');
+  if(badge) badge.textContent = coinBalance;
+}
+
+/* ---------------- Добрикоин: ставки на "Сейчас играю/смотрю" ---------------- */
+function openBetModal(p, item){
+  if(!myHandle){
+    alert('Сначала опубликуй свой профиль (кнопка «Опубликовать профиль»), чтобы участвовать в ставках.');
+    return;
+  }
+  showModal(`
+    <button class="close" onclick="__close()">×</button>
+    <h3 style="margin-bottom:4px">🎲 Ставка на ${esc(p.name||p.handle)}</h3>
+    <div class="rd-meta" style="margin-bottom:14px">${esc(item.title)}</div>
+    <label>Сумма (у тебя ${coinBalance} 🟡)</label>
+    <input type="number" id="betAmount" min="1" max="${coinBalance}" value="${Math.min(10, coinBalance)||1}">
+    <label>На что ставишь</label>
+    <textarea id="betNote" placeholder="напр. пройдёт за выходные / дропнет через час…"></textarea>
+    <div id="betErr" style="color:var(--s);font-size:12.5px;margin:4px 0 10px;min-height:16px"></div>
+    <button class="btn" id="betSubmit" style="width:100%">Поставить</button>
+  `);
+  document.getElementById('betSubmit').addEventListener('click', async ()=>{
+    const amount = parseInt(document.getElementById('betAmount').value, 10);
+    const note = document.getElementById('betNote').value.trim();
+    const err = document.getElementById('betErr');
+    if(!amount || amount < 1){ err.textContent = 'Укажи сумму ставки.'; return; }
+    if(amount > coinBalance){ err.textContent = 'Недостаточно Добрикоин.'; return; }
+    if(!note){ err.textContent = 'Напиши, на что ставишь.'; return; }
+    await addCoins(-amount);
+    try{
+      await sb.from('coin_bets').insert({
+        domain, target_handle: p.handle, item_id: item.id, item_title: item.title,
+        bettor_handle: myHandle, bettor_name: profile.name, amount, note,
+        status: 'pending', created_at: Date.now()
+      });
+    }catch(e){ console.error('bet insert failed', e); }
+    closeModal();
+    loadFriendsActivity();
+  });
+}
+
+// Панель "Ставки на проверку" — показывается автору активности, когда он закончил играть/смотреть
+async function loadBetsToResolve(){
+  const side = document.getElementById('activitySide');
+  if(!side) return;
+  let box = document.getElementById('resolveBox');
+  if(!myHandle){ if(box) box.remove(); return; }
+  let pending = [];
+  try{
+    const { data } = await sb.from('coin_bets')
+      .select('*').eq('domain', domain).eq('target_handle', myHandle).eq('status','pending');
+    pending = data || [];
+  }catch(e){ console.error('loadBetsToResolve failed', e); }
+  // показываем ставку на разрешение только если сам тайтл уже не в активном статусе
+  const resolvable = pending.filter(b=>{
+    const g = games.find(x=>x.id===b.item_id);
+    return g && g.status !== activeStatus();
+  });
+  if(!box){
+    box = document.createElement('div');
+    box.id = 'resolveBox';
+    box.className = 'resolve-box';
+    side.appendChild(box);
+  }
+  if(resolvable.length === 0){ box.innerHTML = ''; return; }
+  box.innerHTML = `<h4>🎲 Ставки на проверку</h4>` + resolvable.map(b=>`
+    <div class="resolve-item">
+      <div class="resolve-top"><b>${esc(b.bettor_name||b.bettor_handle)}</b> поставил ${b.amount} 🟡 на «${esc(b.item_title)}»</div>
+      <div class="resolve-note">${esc(b.note||'')}</div>
+      <div class="resolve-actions">
+        <button class="resolve-win" data-id="${b.id}" data-win="1">✅ Выигрыш</button>
+        <button class="resolve-lose" data-id="${b.id}" data-win="0">❌ Проигрыш</button>
+      </div>
+    </div>`).join('');
+  box.querySelectorAll('button[data-id]').forEach(btn=>{
+    btn.addEventListener('click', ()=>resolveBet(btn.dataset.id, btn.dataset.win==='1'));
+  });
+}
+async function resolveBet(betId, win){
+  try{
+    const { data } = await sb.from('coin_bets').select('*').eq('id', betId).limit(1);
+    const bet = data && data[0]; if(!bet) return;
+    if(win){
+      const { data: profRow } = await sb.from('public_profiles').select('balance')
+        .eq('id', bet.domain+':'+bet.bettor_handle).maybeSingle();
+      const cur = (profRow && typeof profRow.balance === 'number') ? profRow.balance : COIN_START;
+      await sb.from('public_profiles').update({ balance: cur + bet.amount*2 }).eq('id', bet.domain+':'+bet.bettor_handle);
+    }
+    await sb.from('coin_bets').update({ status: win?'won':'lost' }).eq('id', betId);
+  }catch(e){ console.error('resolveBet failed', e); }
+  loadBetsToResolve();
+}
+
 // Сайдбар "Сейчас играют/смотрят" — показывает друзей с активным статусом
 async function loadFriendsActivity(){
   const titleEl = document.getElementById('activityTitle');
@@ -653,29 +793,52 @@ async function loadFriendsActivity(){
   const verbSingle = domain==='games' ? 'играет' : 'смотрит';
   titleEl.textContent = 'Сейчас ' + verb;
   listEl.innerHTML = '<div class="activity-empty mono">Загрузка…</div>';
+
   const profiles = await listProfiles();
-  const active = [];
+  const rows = [];
   profiles.forEach(p=>{
     if(myHandle && p.handle === myHandle) return; // себя не показываем
-    const items = (p.items||[]).filter(it => it && it.status === activeStatus());
-    if(items.length) active.push({ p, items });
+    (p.items||[]).forEach(it=>{
+      if(it && it.status === activeStatus()) rows.push({ p, item: it });
+    });
   });
-  if(active.length === 0){
+  activityRows = rows;
+
+  let potByItem = {};
+  try{
+    const { data: bets } = await sb.from('coin_bets')
+      .select('item_id, amount').eq('domain', domain).eq('status','pending');
+    (bets||[]).forEach(b=>{
+      if(!potByItem[b.item_id]) potByItem[b.item_id] = { count:0, total:0 };
+      potByItem[b.item_id].count++; potByItem[b.item_id].total += b.amount;
+    });
+  }catch(e){ console.error('load bets pot failed', e); }
+
+  if(rows.length === 0){
     listEl.innerHTML = `<div class="activity-empty mono">Пока никто из друзей ничего не ${verbSingle}.</div>`;
-    return;
+  } else {
+    listEl.innerHTML = rows.map(({p, item}, idx)=>{
+      const pot = potByItem[item.id];
+      const potHTML = pot ? `<div class="activity-pot mono">🎲 ${pot.count} · ${pot.total} 🟡</div>` : '';
+      return `
+        <div class="activity-item">
+          <div class="activity-avatar">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
+          <div class="activity-info">
+            <div class="activity-name">${esc(p.name||p.handle)}</div>
+            <div class="activity-game">${esc(item.title)}</div>
+            ${potHTML}
+          </div>
+          <button class="bet-btn" data-idx="${idx}" title="Поставить Добрикоин">🎲</button>
+        </div>`;
+    }).join('');
+    listEl.querySelectorAll('.bet-btn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const { p, item } = activityRows[+btn.dataset.idx];
+        openBetModal(p, item);
+      });
+    });
   }
-  listEl.innerHTML = active.map(({p, items})=>{
-    const first = esc(items[0].title);
-    const extra = items.length > 1 ? `<span class="activity-more">+${items.length-1}</span>` : '';
-    return `
-      <div class="activity-item">
-        <div class="activity-avatar">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
-        <div class="activity-info">
-          <div class="activity-name">${esc(p.name||p.handle)}</div>
-          <div class="activity-game">${first}${extra}</div>
-        </div>
-      </div>`;
-  }).join('');
+  loadBetsToResolve();
 }
 
 // Сайдбар "Недавние обзоры" — обзоры друзей, клик открывает полный обзор (как через "Друзья")
@@ -724,6 +887,11 @@ async function loadFriendsReviews(){
 let profile = { name:'Игрок', tag:'Мои обзоры и личный рейтинг', avatar:'🎮' };
 let itemsStore = { games:[], movies:[] };
 let handleStore = { games:'', movies:'' };
+let balanceStore = { games:100, movies:100 };
+let coinBalance = 100;
+let activityRows = []; // кэш для кликов по кнопке ставки в сайдбаре
+const COIN_START = 100;
+const COIN_REVIEW_REWARD = 100;
 let games = [];           // активный список текущего домена
 let currentView = 'me';   // 'me' | 'friends'
 let myHandle = '';        // ник в текущем домене
@@ -733,16 +901,20 @@ let musicUrl = '';
 let centerCfg = { type:'emoji', value:'💃' };
 const CENTER_EMOJI = ['💃','🕺','🎮','🎲','🔥','🐸','🤖','👾'];
 
-function switchDomain(dom){
+async function switchDomain(dom){
   if(dom === domain) return;
-  itemsStore[domain] = games; handleStore[domain] = myHandle;
+  itemsStore[domain] = games; handleStore[domain] = myHandle; balanceStore[domain] = coinBalance;
   domain = dom;
-  games = itemsStore[domain]; myHandle = handleStore[domain];
+  games = itemsStore[domain]; myHandle = handleStore[domain]; coinBalance = balanceStore[domain];
   searchQuery = ''; statusFilter = 'all'; currentView = 'me';
   document.body.dataset.domain = domain;
   render();
   loadFriendsActivity();
   loadFriendsReviews();
+  coinBalance = await loadCoinBalance();
+  balanceStore[domain] = coinBalance;
+  const badge = document.getElementById('coinStatNum');
+  if(badge) badge.textContent = coinBalance;
 }
 
 const AVATARS = ['🎮','👾','🕹️','🎯','🏆','🐉','⚔️','🛸','🍄','💀','🦊','🤖'];
@@ -790,7 +962,8 @@ function statsHTML(list){
     <div class="stat"><div class="num">${count}</div><div class="lab">Обзоров</div></div>
     <div class="stat"><div class="num">${rated.length?avg.toFixed(1):'—'}</div><div class="lab">Средний балл</div></div>
     <div class="stat"><div class="num">${topTier}</div><div class="lab">Высший тир</div></div>
-    <div class="stat"><div class="num">${played}</div><div class="lab">${esc(L().statPlayed)}</div></div>`;
+    <div class="stat"><div class="num">${played}</div><div class="lab">${esc(L().statPlayed)}</div></div>
+    <div class="stat"><div class="num" id="coinStatNum">${coinBalance}</div><div class="lab">🟡 Добрикоин</div></div>`;
 }
 
 // Одна карточка игры. opts: {readonly, showStatus, statusDot, noReviewTag}
@@ -1499,11 +1672,18 @@ async function submitForm(editId, getCover){
     review: document.getElementById('fReview').value.trim(),
     cover: getCover ? getCover() : '',
   };
+  let item;
   if(editId){
     const i = games.findIndex(x=>x.id===editId);
-    if(i>-1) games[i] = {...games[i], ...data};
+    if(i>-1){ games[i] = {...games[i], ...data}; item = games[i]; }
   } else {
-    games.push({ id:'g_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), ...data, added:Date.now() });
+    item = { id:'g_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), ...data, added:Date.now() };
+    games.push(item);
+  }
+  // Награда: +100 Добрикоин за первый обзор к завершённому тайтлу (одна выплата на карточку навсегда)
+  if(item && item.status === doneStatus() && item.review && !item.coinRewarded){
+    item.coinRewarded = true;
+    await addCoins(COIN_REVIEW_REWARD);
   }
   await saveGames(games);
   closeModal(); render();
@@ -1585,6 +1765,8 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   handleStore.movies = await loadHandleFor('movies');
   games = itemsStore[domain];
   myHandle = handleStore[domain];
+  coinBalance = await loadCoinBalance();
+  balanceStore[domain] = coinBalance;
   musicUrl = await loadMusicUrl();
   const cc = await loadCenterCfg(); if(cc) centerCfg = cc;
   document.body.dataset.domain = domain;
