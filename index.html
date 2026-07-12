@@ -932,6 +932,22 @@ async function addCoins(delta){
   loadLeaderboard();
 }
 
+/* Дневной лимит на награду за обзор: не более одной выплаты в 24 часа
+   (защита от фарма через создание и удаление карточек). */
+const REVIEW_REWARD_COOLDOWN_MS = 24*60*60*1000;
+async function canClaimReviewReward(){
+  try{
+    const r = await window.storage.get('lastReviewReward:'+domain, false);
+    if(!r || !r.value) return true;
+    const last = parseInt(r.value, 10);
+    if(!last) return true;
+    return (Date.now() - last) >= REVIEW_REWARD_COOLDOWN_MS;
+  }catch(e){ return true; }
+}
+async function markReviewRewardClaimed(){
+  try{ await window.storage.set('lastReviewReward:'+domain, String(Date.now()), false); }catch(e){}
+}
+
 /* ---------------- Добрикоин: ставки на "Сейчас играю/смотрю" ---------------- */
 function openBetModal(p, item){
   if(!myHandle){
@@ -2036,10 +2052,14 @@ async function submitForm(editId, getData){
     item = { id:'g_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), ...data, added:Date.now() };
     games.push(item);
   }
-  // Награда: +100 Добрикоин за первый обзор к завершённому тайтлу (одна выплата на карточку навсегда)
+  // Награда: +100 Добрикоин за первый обзор к завершённому тайтлу.
+  // Не более одной выплаты за 24 часа (защита от фарма через удаление/создание карточек).
   if(item && item.status === doneStatus() && item.review && !item.coinRewarded){
-    item.coinRewarded = true;
-    await addCoins(COIN_REVIEW_REWARD);
+    if(await canClaimReviewReward()){
+      item.coinRewarded = true;
+      await addCoins(COIN_REVIEW_REWARD);
+      await markReviewRewardClaimed();
+    }
   }
   await saveGames(games);
   closeModal(); render();
