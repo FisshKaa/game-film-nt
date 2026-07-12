@@ -86,6 +86,37 @@
   /* Скины рулетки + конфетти */
   .wheel-wrap.rs-neon{filter:drop-shadow(0 0 10px #22d3eeaa)}
   .wheel-wrap.rs-gold{filter:drop-shadow(0 0 12px #f5b942bb)}
+  /* Ленты: CS-кейс (гориз.) и слот (вертик.) */
+  .strip-wrap{position:relative;margin:14px auto 6px;overflow:hidden;border:1px solid var(--line);
+    border-radius:14px;background:var(--ink)}
+  .strip-wrap[data-axis="x"]{width:100%;max-width:470px;height:150px}
+  .strip-wrap[data-axis="y"]{width:150px;max-width:60%;height:300px}
+  .strip-track{display:flex;gap:8px;padding:8px;will-change:transform}
+  .strip-wrap[data-axis="x"] .strip-track{flex-direction:row;height:100%;align-items:stretch}
+  .strip-wrap[data-axis="y"] .strip-track{flex-direction:column;width:100%}
+  .strip-cell{flex:0 0 auto;background:var(--surface);border:2px solid var(--line);border-radius:10px;
+    overflow:hidden;display:flex;flex-direction:column}
+  .strip-wrap[data-axis="x"] .strip-cell{width:116px;height:100%}
+  .strip-wrap[data-axis="y"] .strip-cell{width:100%;height:84px;flex-direction:row;align-items:center}
+  .strip-cell img{width:100%;height:100%;object-fit:cover;flex:1;min-height:0}
+  .strip-wrap[data-axis="y"] .strip-cell img{width:84px;height:84px;flex:0 0 84px}
+  .strip-noimg{flex:1;display:grid;place-items:center;font-size:30px;background:var(--ink2)}
+  .strip-wrap[data-axis="y"] .strip-noimg{flex:0 0 84px;width:84px;height:84px}
+  .strip-title{font-size:11px;padding:4px 6px;text-align:center;white-space:nowrap;overflow:hidden;
+    text-overflow:ellipsis;flex-shrink:0}
+  .strip-wrap[data-axis="y"] .strip-title{flex:1;text-align:left}
+  .strip-pointer{position:absolute;z-index:5;background:var(--accent);box-shadow:0 0 12px var(--accent)}
+  .strip-wrap[data-axis="x"] .strip-pointer{top:0;bottom:0;left:50%;width:3px;transform:translateX(-50%)}
+  .strip-wrap[data-axis="y"] .strip-pointer{left:0;right:0;top:50%;height:3px;transform:translateY(-50%)}
+  .strip-wrap::before,.strip-wrap::after{content:'';position:absolute;z-index:3;pointer-events:none}
+  .strip-wrap[data-axis="x"]::before{left:0;top:0;bottom:0;width:70px;background:linear-gradient(90deg,var(--ink),transparent)}
+  .strip-wrap[data-axis="x"]::after{right:0;top:0;bottom:0;width:70px;background:linear-gradient(270deg,var(--ink),transparent)}
+  .strip-wrap[data-axis="y"]::before{top:0;left:0;right:0;height:50px;background:linear-gradient(180deg,var(--ink),transparent)}
+  .strip-wrap[data-axis="y"]::after{bottom:0;left:0;right:0;height:50px;background:linear-gradient(0deg,var(--ink),transparent)}
+  .strip-wrap.rs-case-gold{border-color:#f5b942;box-shadow:0 0 16px #f5b94244}
+  .strip-wrap.rs-case-gold .strip-pointer{background:#f5b942;box-shadow:0 0 12px #f5b942}
+  .strip-wrap.rs-case{border-color:#22d3ee55}
+  .strip-wrap.rs-case .strip-pointer{background:#22d3ee;box-shadow:0 0 12px #22d3ee}
   .confetti-layer{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden}
   .confetti-piece{position:absolute;top:0;width:9px;height:14px;border-radius:2px;animation:confFall linear forwards}
   @keyframes confFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(105vh) rotate(600deg);opacity:.85}}
@@ -1421,10 +1452,12 @@ const SHOP = [
   { id:'bd_diamond', cat:'badge', label:'Алмаз',   price:2500, sym:'💎' },
   { id:'bd_crown',   cat:'badge', label:'Корона',  price:3000, sym:'👑' },
   // Цвет карточек обзоров (1500–2500)
-  // Оформление рулетки (2000–5000)
-  { id:'rs_confetti', cat:'roulette', label:'Конфетти',        price:2000, cls:'rs-confetti' },
-  { id:'rs_neon',     cat:'roulette', label:'Неон-барабан',    price:3500, cls:'rs-neon' },
-  { id:'rs_gold',     cat:'roulette', label:'Золотой барабан', price:5000, cls:'rs-gold' },
+  // Оформление рулетки — барабаны и «ленты» (конфетти теперь бесплатно и всегда)
+  { id:'rs_neon',      cat:'roulette', label:'Неон-барабан',    price:250,  cls:'rs-neon',      mode:'wheel' },
+  { id:'rs_gold',      cat:'roulette', label:'Золотой барабан', price:250,  cls:'rs-gold',      mode:'wheel' },
+  { id:'rs_slot',      cat:'roulette', label:'Слот-машина',     price:500,  cls:'rs-slot',      mode:'strip', axis:'y' },
+  { id:'rs_case',      cat:'roulette', label:'CS-кейс',         price:1000, cls:'rs-case',      mode:'strip', axis:'x' },
+  { id:'rs_case_gold', cat:'roulette', label:'CS-кейс Голд',    price:1500, cls:'rs-case-gold', mode:'strip', axis:'x' },
 ];
 const SHOP_CATS = [
   { key:'frame',      label:'Рамки аватара' },
@@ -1456,7 +1489,7 @@ function shopPreview(it){
   if(it.cat==='background') return `<div class="shop-bg ${it.cls}"></div>`;
   if(it.cat==='nameFx')     return `<div class="shop-fx ${it.cls}">Имя</div>`;
   if(it.cat==='badge')      return `<div class="shop-sym">${it.sym}</div>`;
-  if(it.cat==='roulette')   return `<div class="shop-rl ${it.cls}">🎡</div>`;
+  if(it.cat==='roulette'){ const ic = it.mode==='strip' ? (it.axis==='y'?'🎰':'📦') : '🎡'; return `<div class="shop-rl ${it.cls}">${ic}</div>`; }
   return '';
 }
 
@@ -1979,6 +2012,14 @@ function launchConfetti(){
   }
   setTimeout(()=>layer.remove(), 3600);
 }
+// Ячейка «ленты» (CS-кейс / слот)
+function stripCellHTML(g){
+  const ph = domain==='movies' ? '🎬' : '🎮';
+  const cov = g.cover
+    ? `<img src="${esc(g.cover)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'strip-noimg',textContent:'${ph}'}))">`
+    : `<div class="strip-noimg">${ph}</div>`;
+  return `<div class="strip-cell" style="border-color:${statusColor(g.status)}">${cov}<div class="strip-title">${esc(g.title)}</div></div>`;
+}
 function openRoulette(){
   const backl = backlogStatuses();
   const backlog = games.filter(g=>backl.includes(g.status));
@@ -1988,6 +2029,8 @@ function openRoulette(){
   let rotation = 0;                        // накопленный угол поворота (всегда растёт → по часовой)
   const rlSkin = rouletteSkinOf(profile.cosmetics);
   const rlSkinCls = rlSkin ? (' '+rlSkin.cls) : '';
+  const mode = (rlSkin && rlSkin.mode) ? rlSkin.mode : 'wheel';   // 'wheel' | 'strip'
+  const axis = (rlSkin && rlSkin.axis) ? rlSkin.axis : 'x';       // для strip: 'x' | 'y'
 
   showModal(`
     <button class="close" onclick="__close()">×</button>
@@ -2014,7 +2057,7 @@ function openRoulette(){
       <input type="range" id="rlVol" min="0" max="100" step="1" value="${rlVolume}">
       <span class="rl-vol-num" id="rlVolNum">${rlVolume}%</span>
     </div>
-    <div class="rl-center-pick" id="centerPick">
+    ${mode==='wheel' ? `<div class="rl-center-pick" id="centerPick">
       <span class="lbl">Центр</span>
       ${CENTER_EMOJI.map(e=>`<button class="cbtn ${centerCfg.type==='emoji'&&centerCfg.value===e?'sel':''}" data-type="emoji" data-val="${e}">${e}</button>`).join('')}
       <button class="cbtn ${centerCfg.type==='shape'?'sel':''}" data-type="shape" title="Вращающаяся фигура"><span class="mini-shape"></span></button>
@@ -2023,12 +2066,18 @@ function openRoulette(){
       <div class="center-img-row ${centerCfg.type==='image'?'show':''}" id="centerImgRow">
         <input type="text" id="centerImg" placeholder="Ссылка на GIF или картинку" value="${centerCfg.type==='image'?esc(centerCfg.value||''):''}" autocomplete="off">
       </div>
-    </div>
-    <div class="wheel-wrap${rlSkinCls}" id="wheelWrap">
-      <div class="wheel-pointer"></div>
-      <div class="wheel-rot" id="wheelRot"></div>
-      <div class="wheel-center" id="wheelCenter"></div>
-    </div>
+    </div>` : ''}
+    ${mode==='wheel'
+      ? `<div class="wheel-wrap${rlSkinCls}" id="wheelWrap">
+          <div class="wheel-pointer"></div>
+          <div class="wheel-rot" id="wheelRot"></div>
+          <div class="wheel-center" id="wheelCenter"></div>
+        </div>`
+      : `<div class="strip-wrap${rlSkinCls}" id="wheelWrap" data-axis="${axis}">
+          <div class="strip-pointer"></div>
+          <div class="strip-track" id="stripTrack"></div>
+        </div>`
+    }
     <div class="rl-result" id="rlResult"></div>
     <div class="form-actions">
       <button class="btn" id="spinBtn" style="flex:1">Крутить</button>
@@ -2037,6 +2086,7 @@ function openRoulette(){
   `);
 
   const wheelRot = document.getElementById('wheelRot');
+  const stripTrack = document.getElementById('stripTrack');
   const spinBtn = document.getElementById('spinBtn');
   const resultEl = document.getElementById('rlResult');
   const picksEl = document.getElementById('rlPicks');
@@ -2048,24 +2098,26 @@ function openRoulette(){
   const centerImgRow = document.getElementById('centerImgRow');
   const centerImgInp = document.getElementById('centerImg');
 
-  function renderCenter(){ centerEl.innerHTML = centerInner(centerCfg); }
+  function renderCenter(){ if(centerEl) centerEl.innerHTML = centerInner(centerCfg); }
 
-  centerPick.querySelectorAll('.cbtn').forEach(b=>{
-    b.addEventListener('click', ()=>{
-      const type = b.dataset.type;
-      if(type==='emoji') centerCfg = { type:'emoji', value:b.dataset.val };
-      else if(type==='shape') centerCfg = { type:'shape' };
-      else if(type==='none') centerCfg = { type:'none' };
-      else if(type==='image') centerCfg = { type:'image', value:(centerImgInp.value.trim()||'') };
-      centerPick.querySelectorAll('.cbtn').forEach(x=>x.classList.remove('sel'));
-      b.classList.add('sel');
-      centerImgRow.classList.toggle('show', type==='image');
-      saveCenterCfg(centerCfg); renderCenter();
+  if(centerPick){
+    centerPick.querySelectorAll('.cbtn').forEach(b=>{
+      b.addEventListener('click', ()=>{
+        const type = b.dataset.type;
+        if(type==='emoji') centerCfg = { type:'emoji', value:b.dataset.val };
+        else if(type==='shape') centerCfg = { type:'shape' };
+        else if(type==='none') centerCfg = { type:'none' };
+        else if(type==='image') centerCfg = { type:'image', value:(centerImgInp.value.trim()||'') };
+        centerPick.querySelectorAll('.cbtn').forEach(x=>x.classList.remove('sel'));
+        b.classList.add('sel');
+        centerImgRow.classList.toggle('show', type==='image');
+        saveCenterCfg(centerCfg); renderCenter();
+      });
     });
-  });
-  centerImgInp.addEventListener('input', ()=>{
-    if(centerCfg.type==='image'){ centerCfg.value = centerImgInp.value.trim(); saveCenterCfg(centerCfg); renderCenter(); }
-  });
+    centerImgInp.addEventListener('input', ()=>{
+      if(centerCfg.type==='image'){ centerCfg.value = centerImgInp.value.trim(); saveCenterCfg(centerCfg); renderCenter(); }
+    });
+  }
 
   musicInp.addEventListener('change', ()=>{ musicUrl = musicInp.value.trim(); saveMusicUrl(musicUrl); });
   const volInp = document.getElementById('rlVol');
@@ -2105,9 +2157,44 @@ function openRoulette(){
 
   function buildWheel(){
     const pool = currentPool();
-    wheelRot.innerHTML = pool.length
-      ? buildWheelSVG(pool)
-      : `<div class="wheel-empty">Выбери хотя бы один статус, чтобы собрать колесо</div>`;
+    if(mode==='wheel'){
+      wheelRot.innerHTML = pool.length
+        ? buildWheelSVG(pool)
+        : `<div class="wheel-empty">Выбери хотя бы один статус, чтобы собрать колесо</div>`;
+    } else {
+      if(!pool.length){ stripTrack.innerHTML = ''; return; }
+      // статичная лента до старта: случайные ячейки
+      let cells = '';
+      for(let i=0;i<24;i++) cells += stripCellHTML(pool[Math.floor(Math.random()*pool.length)]);
+      stripTrack.style.transition = 'none';
+      stripTrack.style.transform = 'translate(0,0)';
+      stripTrack.innerHTML = cells;
+    }
+  }
+
+  // Анимация ленты: строит длинную ленту с победителем ближе к концу и подъезжает к указателю
+  function beginStripSpin(pool, winner, secs){
+    const N = pool.length;
+    const total = Math.max(48, N*6);
+    const winCell = total - 6;
+    let items = '';
+    for(let i=0;i<total;i++) items += stripCellHTML(i===winCell ? winner : pool[Math.floor(Math.random()*N)]);
+    stripTrack.style.transition = 'none';
+    stripTrack.style.transform = 'translate(0,0)';
+    stripTrack.innerHTML = items;
+    void stripTrack.offsetWidth; // reflow
+    const gap = 8, pad = 8;
+    const first = stripTrack.children[winCell] || stripTrack.children[0];
+    const cellSize = axis==='x' ? first.offsetWidth : first.offsetHeight;
+    const stride = cellSize + gap;
+    const wrap = document.getElementById('wheelWrap');
+    const viewport = axis==='x' ? wrap.clientWidth : wrap.clientHeight;
+    const jitter = (Math.random()-0.5) * cellSize * 0.5;
+    const offset = pad + winCell*stride + cellSize/2 - viewport/2 + jitter;
+    requestAnimationFrame(()=>{
+      stripTrack.style.transition = `transform ${secs}s cubic-bezier(0.12,0.7,0.08,1)`;
+      stripTrack.style.transform = axis==='x' ? `translateX(${-offset}px)` : `translateY(${-offset}px)`;
+    });
   }
 
   picksEl.querySelectorAll('.chip:not([disabled])').forEach(ch=>{
@@ -2133,26 +2220,33 @@ function openRoulette(){
     secsInp.value = secs;
 
     const N = pool.length;
-    const seg = 360 / N;
     const winIdx = Math.floor(Math.random()*N);
     const winner = pool[winIdx];
 
-    // центр выигрышного сегмента (от верха, по часовой) с небольшим разбросом внутри сегмента
-    const center = winIdx*seg + seg/2;
-    const jitter = (Math.random()-0.5) * seg * 0.7;
-    const targetMod = (((-(center + jitter)) % 360) + 360) % 360;   // сколько должно остаться по модулю
-    const curMod = ((rotation % 360) + 360) % 360;
-    const turns = 6;
-    const advance = turns*360 + (((targetMod - curMod) % 360) + 360) % 360;
-    rotation += advance;
+    // Для барабана заранее считаем целевой угол
+    if(mode==='wheel'){
+      const seg = 360 / N;
+      const center = winIdx*seg + seg/2;
+      const jitter = (Math.random()-0.5) * seg * 0.7;
+      const targetMod = (((-(center + jitter)) % 360) + 360) % 360;
+      const curMod = ((rotation % 360) + 360) % 360;
+      const turns = 6;
+      const advance = turns*360 + (((targetMod - curMod) % 360) + 360) % 360;
+      rotation += advance;
+    }
 
-    // Запуск анимации колеса + центра
+    const animEl = (mode==='wheel') ? wheelRot : stripTrack;
+
     const beginSpin = ()=>{
-      centerEl.classList.add('dancing');
-      requestAnimationFrame(()=>{
-        wheelRot.style.transition = `transform ${secs}s cubic-bezier(0.15,0.68,0.10,1)`;
-        wheelRot.style.transform = `rotate(${rotation}deg)`;
-      });
+      if(mode==='wheel'){
+        if(centerEl) centerEl.classList.add('dancing');
+        requestAnimationFrame(()=>{
+          wheelRot.style.transition = `transform ${secs}s cubic-bezier(0.15,0.68,0.10,1)`;
+          wheelRot.style.transform = `rotate(${rotation}deg)`;
+        });
+      } else {
+        beginStripSpin(pool, winner, secs);
+      }
     };
 
     const hasMusic = !!parseYouTube(musicInp.value);
@@ -2168,9 +2262,9 @@ function openRoulette(){
     }
 
     const onEnd = ()=>{
-      wheelRot.removeEventListener('transitionend', onEnd);
+      animEl.removeEventListener('transitionend', onEnd);
       stopMusic();
-      centerEl.classList.remove('dancing');
+      if(centerEl) centerEl.classList.remove('dancing');
       spinning = false; spinBtn.disabled = false; spinBtn.textContent = 'Крутить снова';
       resultEl.innerHTML = `<div class="rl-win">
           <div class="rl-win-lab mono">Выпало</div>
@@ -2186,9 +2280,9 @@ function openRoulette(){
       if(ob) ob.addEventListener('click', ()=>openDetail(winner.id, games, false, openRoulette, '← Назад к рулетке'));
       const fbtn = document.getElementById('rlFriends');
       if(fbtn) fbtn.addEventListener('click', ()=>showFriendReviews(fbtn, winner.title));
-      if(rlSkin) launchConfetti();
+      launchConfetti();   // конфетти теперь всегда
     };
-    wheelRot.addEventListener('transitionend', onEnd);
+    animEl.addEventListener('transitionend', onEnd);
   }
 
   // Ищет игру по названию у всех опубликованных друзей и показывает их оценки/обзоры
