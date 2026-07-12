@@ -680,7 +680,20 @@ function movieUrl(item){
   if(item && item.tmdbId) return `https://www.themoviedb.org/movie/${item.tmdbId}?language=ru`;
   return `https://www.themoviedb.org/search?query=${encodeURIComponent((item&&item.title)||'')}`;
 }
-// Ищет фильм на TMDB по названию → {cover, tmdbId} или null
+// Кэш карты жанров TMDB {id: 'название'}
+let tmdbGenreMap = null;
+async function tmdbGenres(){
+  if(tmdbGenreMap) return tmdbGenreMap;
+  try{
+    const res = await fetch('https://api.themoviedb.org/3/genre/movie/list?language=ru-RU',
+      { headers:{ Authorization:'Bearer '+TMDB_TOKEN, accept:'application/json' } });
+    const data = await res.json();
+    tmdbGenreMap = {};
+    (data.genres||[]).forEach(g=>{ tmdbGenreMap[g.id] = g.name; });
+  }catch(e){ tmdbGenreMap = {}; }
+  return tmdbGenreMap;
+}
+// Ищет фильм на TMDB по названию → {cover, tmdbId, genre} или null
 async function fetchMovieCover(title){
   if(!title) return null;
   try{
@@ -691,32 +704,66 @@ async function fetchMovieCover(title){
     const m = data && data.results && data.results[0];
     if(!m) return null;
     const cover = m.poster_path ? `https://image.tmdb.org/t/p/w500${m.poster_path}` : '';
-    return { cover, tmdbId: m.id || null };
+    let genre = '';
+    if(m.genre_ids && m.genre_ids.length){
+      const map = await tmdbGenres();
+      genre = m.genre_ids.map(id=>map[id]).filter(Boolean).slice(0,2).join(', ');
+    }
+    return { cover, tmdbId: m.id || null, genre };
   }catch(e){ console.error('tmdb fetch failed', e); return null; }
 }
-// Обложка игры из Википедии (без ключа, CORS открыт). Возвращает {cover, wikiUrl} или null.
-// Ищем несколько кандидатов и берём первую статью, у которой есть заглавная картинка.
+// Обложка игры из Википедии (без ключа, CORS открыт). Возвращает {cover, wikiUrl, qid} или null.
+// Берём первую статью с заглавной картинкой; если картинки нет — первую статью (для ссылки/жанра).
 async function fetchGameCover(title){
   if(!title) return null;
+  let fallback = null;
   for(const lang of ['ru','en']){
     try{
       const url = `https://${lang}.wikipedia.org/w/api.php?action=query&format=json&origin=*`
         + `&redirects=1&generator=search&gsrsearch=${encodeURIComponent(title)}&gsrlimit=5`
-        + `&prop=pageimages&piprop=thumbnail&pithumbsize=500&pilicense=any`;
+        + `&prop=pageimages|pageprops&ppprop=wikibase_item&piprop=thumbnail&pithumbsize=500&pilicense=any`;
       const res = await fetch(url);
       if(!res.ok) continue;
       const data = await res.json();
       const pages = data && data.query && data.query.pages;
       if(!pages) continue;
       const arr = Object.values(pages).sort((a,b)=>(a.index||0)-(b.index||0));
-      for(const pg of arr){
-        if(pg.thumbnail && pg.thumbnail.source){
-          return { cover: pg.thumbnail.source, wikiUrl: `https://${lang}.wikipedia.org/?curid=${pg.pageid}` };
-        }
+      const qidOf = pg => (pg.pageprops && pg.pageprops.wikibase_item) || null;
+      const withImg = arr.find(pg => pg.thumbnail && pg.thumbnail.source);
+      if(withImg){
+        return { cover: withImg.thumbnail.source, wikiUrl:`https://${lang}.wikipedia.org/?curid=${withImg.pageid}`, qid: qidOf(withImg) };
+      }
+      if(!fallback && arr[0]){
+        fallback = { cover:'', wikiUrl:`https://${lang}.wikipedia.org/?curid=${arr[0].pageid}`, qid: qidOf(arr[0]) };
       }
     }catch(e){}
   }
-  return null;
+  return fallback;
+}
+// Жанр игры из Wikidata по QID (свойство P136). Без ключа, CORS открыт. → строка или ''
+async function fetchWikidataGenre(qid){
+  if(!qid) return '';
+  try{
+    const r1 = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetclaims&entity=${qid}&property=P136&format=json&origin=*`);
+    if(!r1.ok) return '';
+    const d1 = await r1.json();
+    const claims = d1 && d1.claims && d1.claims.P136;
+    if(!claims || !claims.length) return '';
+    const ids = claims.map(c => c.mainsnak && c.mainsnak.datavalue && c.mainsnak.datavalue.value && c.mainsnak.datavalue.value.id)
+                      .filter(Boolean).slice(0,2);
+    if(!ids.length) return '';
+    const r2 = await fetch(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${ids.join('|')}&props=labels&languages=ru|en&format=json&origin=*`);
+    if(!r2.ok) return '';
+    const d2 = await r2.json();
+    const ents = d2 && d2.entities;
+    if(!ents) return '';
+    const names = ids.map(id=>{
+      const e = ents[id]; if(!e || !e.labels) return '';
+      const lab = e.labels.ru || e.labels.en;
+      return lab ? lab.value : '';
+    }).filter(Boolean);
+    return names.join(', ');
+  }catch(e){ return ''; }
 }
 // Ссылка на игру: статья в Википедии (если нашли) или поиск по названию
 function gameUrl(item){
@@ -1852,10 +1899,18 @@ async function submitForm(editId, getCover){
     if(saveBtn){ saveBtn.disabled = true; saveBtn.textContent = 'Ищу обложку…'; }
     if(domain === 'movies'){
       const r = await fetchMovieCover(title);
-      if(r){ if(!data.cover && r.cover) data.cover = r.cover; if(r.tmdbId) data.tmdbId = r.tmdbId; }
+      if(r){
+        if(!data.cover && r.cover) data.cover = r.cover;
+        if(r.tmdbId) data.tmdbId = r.tmdbId;
+        if(!data.genre && r.genre) data.genre = r.genre;
+      }
     } else {
       const r = await fetchGameCover(title);
-      if(r){ if(!data.cover && r.cover) data.cover = r.cover; if(r.wikiUrl) data.wikiUrl = r.wikiUrl; }
+      if(r){
+        if(!data.cover && r.cover) data.cover = r.cover;
+        if(r.wikiUrl) data.wikiUrl = r.wikiUrl;
+        if(!data.genre && r.qid){ const gnr = await fetchWikidataGenre(r.qid); if(gnr) data.genre = gnr; }
+      }
     }
     if(saveBtn){ saveBtn.disabled = false; saveBtn.textContent = prevLabel; }
   }
