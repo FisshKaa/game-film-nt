@@ -3506,6 +3506,7 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   handleStore.movies = await loadHandleFor('movies');
   games = itemsStore[domain];
   myHandle = handleStore[domain];
+  collections = collectionsStore[domain];
   coinBalance = await loadCoinBalance();
   balanceStore[domain] = coinBalance;
   musicUrl = await loadMusicUrl();
