@@ -2900,14 +2900,13 @@ async function toggleReaction(owner, itemId, emoji){
 }
 
 // Рендерит блок реакций в обзоре. owner=null → мой обзор (ник = myHandle)
-async function renderReactions(container, owner, itemId){
+async function renderReactions(container, owner, itemId, isOwn){
   const effectiveOwner = owner || myHandle || '';
   if(!effectiveOwner){ container.innerHTML = ''; return; }
 
   container.innerHTML = '<div class="rx-loading">…</div>';
   const rows = await loadReactions(effectiveOwner, itemId);
 
-  // Группируем по emoji
   const counts = {};
   const myReaction = {};
   REACTION_EMOJIS.forEach(e=>{ counts[e]=0; myReaction[e]=false; });
@@ -2916,8 +2915,7 @@ async function renderReactions(container, owner, itemId){
     if(r.reactor === myHandle) myReaction[r.emoji] = true;
   });
 
-  const canReact = !!myHandle && owner !== myHandle; // нельзя реагировать на свой обзор
-  const total = Object.values(counts).reduce((a,b)=>a+b,0);
+  const canReact = !!myHandle && !isOwn;
 
   container.innerHTML = `<div class="rx-wrap">
     ${REACTION_EMOJIS.map(e=>`
@@ -2925,7 +2923,7 @@ async function renderReactions(container, owner, itemId){
         ${e}${counts[e]>0?`<span class="rx-cnt">${counts[e]}</span>`:''}
       </button>`).join('')}
     ${!myHandle?`<span class="rx-hint">Опубликуй профиль, чтобы ставить реакции</span>`:''}
-    ${myHandle===owner?`<span class="rx-hint">Нельзя реагировать на свой обзор</span>`:''}
+    ${isOwn?`<span class="rx-hint">Нельзя реагировать на свой обзор</span>`:''}
   </div>`;
 
   if(canReact){
@@ -2933,7 +2931,7 @@ async function renderReactions(container, owner, itemId){
       btn.addEventListener('click', async ()=>{
         btn.disabled = true;
         await toggleReaction(effectiveOwner, itemId, btn.dataset.emoji);
-        await renderReactions(container, owner, itemId);
+        await renderReactions(container, owner, itemId, isOwn);
       });
     });
   }
@@ -2971,7 +2969,7 @@ function openDetail(id, list, readonly, onBack, backLabel){
 
   // Реакции: readonly=true → чужой обзор (owner = нужен снаружи), readonly=false → мой
   const rxContainer = document.getElementById('rxContainer');
-  if(rxContainer) renderReactions(rxContainer, readonly ? (list.__owner || null) : null, g.id);
+  if(rxContainer) renderReactions(rxContainer, readonly ? (list.__owner || null) : myHandle, g.id, !readonly);
 
   if(readonly) return;
   document.getElementById('editG').addEventListener('click', ()=>openForm(id));
