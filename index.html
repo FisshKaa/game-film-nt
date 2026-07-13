@@ -2534,48 +2534,53 @@ function centerInner(cfg){
 }
 
 // Строит SVG-колесо: по сегменту на игру из пула
-function buildWheelSVG(pool){
+function buildWheelSVG(pool, bets){
+  bets = bets || [];
   const N = pool.length;
-  const cx = 150, cy = 150, R = 142, imgR = 30, labelR = 92;
+  const cx = 150, cy = 150, R = 142, imgR = 30;
+
+  const weights = pool.map(g=>rouletteWeight(bets, g.id));
+  const totalW = weights.reduce((s,w)=>s+w, 0);
+  const angles = weights.map(w=>w/totalW*360);
+
   if(N === 1){
     const g = pool[0];
-    const imgX = cx - imgR, imgY = cy - 60 - imgR;
+    const ir = imgR;
     return `<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
       <circle cx="${cx}" cy="${cy}" r="${R}" fill="${statusColor(g.status)}" stroke="var(--ink)" stroke-width="2"/>
-      ${g.cover ? `<defs><clipPath id="cp_s"><circle cx="${cx}" cy="${cy-60}" r="${imgR}"/></clipPath></defs>
-        <image href="${g.cover}" x="${imgX}" y="${imgY}" width="${imgR*2}" height="${imgR*2}" clip-path="url(#cp_s)" preserveAspectRatio="xMidYMid slice"/>` :
+      ${g.cover ? `<defs><clipPath id="cp_s"><circle cx="${cx}" cy="${cy-60}" r="${ir}"/></clipPath></defs>
+        <image href="${g.cover}" x="${cx-ir}" y="${cy-60-ir}" width="${ir*2}" height="${ir*2}" clip-path="url(#cp_s)" preserveAspectRatio="xMidYMid slice"/>` :
         `<text x="${cx}" y="${cy-40}" text-anchor="middle" font-size="13" font-family="'Hanken Grotesk',sans-serif" font-weight="700" fill="#12121a">${esc(truncTitle(g.title,16))}</text>`}
       <circle cx="${cx}" cy="${cy}" r="17" fill="var(--ink2)" stroke="var(--accent)" stroke-width="2"/>
     </svg>`;
   }
-  const seg = 360 / N;
-  // Размер иконки: меньше при большом количестве сегментов
-  const ir = N > 18 ? 10 : N > 12 ? 14 : N > 8 ? 18 : 22;
-  // Радиус размещения иконок / текста
-  const picR = N > 18 ? 80 : N > 12 ? 78 : N > 8 ? 75 : 72;
+
   let defs = '<defs>';
   let paths = '', labels = '';
+  let cumAngle = 0;
+
   for(let i=0;i<N;i++){
-    const a0 = i*seg, a1 = (i+1)*seg;
+    const a0 = cumAngle, a1 = cumAngle + angles[i];
+    cumAngle = a1;
     const p0 = wheelPolar(cx,cy,R,a0), p1 = wheelPolar(cx,cy,R,a1);
-    const large = seg > 180 ? 1 : 0;
+    const large = angles[i] > 180 ? 1 : 0;
     const g = pool[i];
     const col = statusColor(g.status);
     paths += `<path d="M${cx} ${cy} L${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A${R} ${R} 0 ${large} 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} Z" fill="${col}" stroke="var(--ink)" stroke-width="1.5"/>`;
-    const mid = a0 + seg/2;
-    const lp = wheelPolar(cx,cy,picR,mid);
-    if(wheelLabelMode==='images' && g.cover){
-      // Картинка в круглом clip-path
-      defs += `<clipPath id="cp${i}"><circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir}"/></clipPath>`;
-      labels += `<image href="${g.cover}" x="${(lp.x-ir).toFixed(2)}" y="${(lp.y-ir).toFixed(2)}" width="${ir*2}" height="${ir*2}" clip-path="url(#cp${i})" preserveAspectRatio="xMidYMid slice"/>`;
-      labels += `<circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir}" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1"/>`;
-    } else {
-      // Текст — поперёк сегмента (перпендикулярно радиусу, читается от левого края к правому)
-      const fs = N > 18 ? 7 : (N > 12 ? 9 : N > 8 ? 10 : 11);
-      const maxCh = N > 18 ? 7 : (N > 12 ? 10 : N > 8 ? 12 : 15);
-      // Поворачиваем на -90° (влево вдоль клина), в нижней половине +90° чтобы не вверх ногами
-      let rot = mid - 90;
-      if(mid > 90 && mid < 270) rot = mid + 90;
+
+    const mid = a0 + angles[i]/2;
+    const ir = Math.max(8, Math.min(imgR, angles[i]/360 * R * 0.75));
+    const picRad = Math.max(38, R - ir - 18);
+    const lp = wheelPolar(cx, cy, picRad, mid);
+
+    if(wheelLabelMode==='images' && g.cover && angles[i] > 14){
+      defs += `<clipPath id="cp${i}"><circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir.toFixed(1)}"/></clipPath>`;
+      labels += `<image href="${g.cover}" x="${(lp.x-ir).toFixed(2)}" y="${(lp.y-ir).toFixed(2)}" width="${(ir*2).toFixed(1)}" height="${(ir*2).toFixed(1)}" clip-path="url(#cp${i})" preserveAspectRatio="xMidYMid slice"/>`;
+      labels += `<circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir.toFixed(1)}" fill="none" stroke="rgba(0,0,0,.3)" stroke-width="1"/>`;
+    } else if(angles[i] > 9){
+      const fs = angles[i] < 20 ? 7 : angles[i] < 40 ? 9 : 11;
+      const maxCh = angles[i] < 20 ? 5 : angles[i] < 40 ? 9 : 15;
+      let rot = mid - 90; if(mid > 90 && mid < 270) rot = mid + 90;
       labels += `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${lp.x.toFixed(2)} ${lp.y.toFixed(2)})" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-family="'Hanken Grotesk',sans-serif" font-weight="700" fill="#12121a">${esc(truncTitle(g.title, maxCh))}</text>`;
     }
   }
@@ -2589,7 +2594,6 @@ function buildWheelSVG(pool){
   </svg>`;
 }
 
-// Дождь из эмодзи когда одна реакция набрала 3+ с отрывом 3 от следующей
 function launchReactionRain(emoji){
   const layer = document.createElement('div');
   layer.className = 'confetti-layer';
@@ -3000,7 +3004,7 @@ function openRoulette(){
     const pool = currentPool();
     if(mode==='wheel'){
       wheelRot.innerHTML = pool.length
-        ? buildWheelSVG(pool)
+        ? buildWheelSVG(pool, rlBets)
         : `<div class="wheel-empty">Выбери хотя бы один статус, чтобы собрать колесо</div>`;
     } else if(mode==='slot'){
       [0,1,2].forEach(i=>{
