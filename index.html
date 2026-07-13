@@ -803,8 +803,10 @@ let domain = 'games';
 function D(){ return DOMAINS[domain]; }
 function L(){ return DOMAINS[domain].L; }
 function statusList(){ return D().statuses; }
-function backlogStatuses(){ return D().statuses.slice(2); }
+function backlogStatuses(){ return [D().statuses[2], D().statuses[4]]; } // Отложено + В планах (без Заброшено)
 function doneStatus(){ return D().statuses[0]; }
+function droppedStatus(){ return D().statuses[3]; }  // Заброшено / Брошено
+function completedStatuses(){ return [D().statuses[0], D().statuses[3]]; } // Пройдено + Заброшено
 function activeStatus(){ return D().statuses[1]; }
 function statusColor(s){ const i = D().statuses.indexOf(s); return i>=0 ? STATUS_PALETTE[i] : '#888'; }
 
@@ -1543,7 +1545,7 @@ async function loadFriendsReviews(){
   profiles.forEach(p=>{
     if(myHandle && p.handle === myHandle) return;
     (p.items||[]).forEach(it=>{
-      if(it && it.status === doneStatus() && it.review && it.review.trim()) reviews.push({ p, item: it });
+      if(it && completedStatuses().includes(it.status) && it.review && it.review.trim()) reviews.push({ p, item: it });
     });
   });
   reviews.sort((a,b)=>(b.item.added||0)-(a.item.added||0));
@@ -2040,7 +2042,7 @@ function fillBoard(el, list, opts){
   // --- Секционный вид по умолчанию ---
   const backl = backlogStatuses();
   const playing   = list.filter(g=>g.status===activeStatus());
-  const completed  = list.filter(g=>g.status===doneStatus());
+  const completed = list.filter(g=>completedStatuses().includes(g.status));
   const backlog   = list.filter(g=>backl.includes(g.status));
   let html = '';
 
@@ -2061,7 +2063,7 @@ function fillBoard(el, list, opts){
   if(backlog.length){
     html += `<div class="section-label">Полка на потом</div>
       <div class="backlog">
-        <div class="block-head"><h3 style="font-size:16px">Отложено · заброшено · в планах</h3>
+        <div class="block-head"><h3 style="font-size:16px">Отложено · в планах</h3>
           ${readonly?'':`<button class="btn sm" id="rouletteBtn" style="margin-left:auto">${esc(L().rouletteBtn)}</button>`}
           <span class="cnt" style="margin-left:${readonly?'auto':'12px'}">${backlog.length}</span></div>
         <div class="block-grid">${backlog.map(g=>cardHTML(g,{readonly,statusDot:true})).join('')}</div>
@@ -3007,7 +3009,7 @@ async function submitForm(editId, getData){
   }
   // Награда: +100 Добрикоин за первый обзор к завершённому тайтлу.
   // Не более одной выплаты за 24 часа (защита от фарма через удаление/создание карточек).
-  if(item && item.status === doneStatus() && item.review && !item.coinRewarded){
+  if(completedStatuses().includes(item.status) && item.review && !item.coinRewarded){
     if(await canClaimReviewReward()){
       item.coinRewarded = true;
       await addCoins(COIN_REVIEW_REWARD);
