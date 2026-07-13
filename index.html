@@ -221,33 +221,29 @@
   .activity-info{min-width:0;flex:1}
   .activity-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-game{font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  /* Новая раскладка: человек → горизонтальный скролл карточек */
-  .act-person{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line);min-width:0}
-  .act-person:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
-  .act-person-head{display:flex;align-items:center;gap:7px;margin-bottom:8px}
-  .act-av-sm{width:26px!important;height:26px!important;font-size:14px!important;border-radius:8px!important}
-  .act-person-name{font-weight:700;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .act-person-cnt{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted2);
-    background:var(--surface2);border:1px solid var(--line);border-radius:20px;padding:1px 7px;flex-shrink:0}
-  .act-hscroll{display:flex;gap:8px;overflow-x:auto;overflow-y:visible;padding-bottom:6px;
-    scroll-snap-type:x mandatory;width:100%;min-width:0;box-sizing:border-box;
-    scrollbar-width:thin;scrollbar-color:var(--line) transparent}
-  .act-card{flex:0 0 120px;scroll-snap-align:start;background:var(--surface);border:1px solid var(--line);
-    border-radius:12px;overflow:hidden;cursor:pointer;position:relative;
-    transition:border-color .15s,transform .15s;display:flex;flex-direction:column}
-  .act-card:hover{border-color:var(--muted2);transform:translateY(-2px)}
-  .act-card-cover{width:100%;height:80px;object-fit:cover;display:block;flex-shrink:0}
-  .act-card-nocover{width:100%;height:80px;display:grid;place-items:center;font-size:28px;
-    background:var(--ink2);flex-shrink:0}
-  .act-card-body{padding:6px 8px;flex:1;min-height:0}
-  .act-card-title{font-size:11.5px;font-weight:700;line-height:1.3;display:-webkit-box;
-    -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-  .act-card-genre{font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .act-pot-badge{font-size:10px;color:#f5c451;margin-top:4px;font-family:'Space Mono',monospace}
-  .act-bet-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:1px solid var(--line);
-    border-radius:7px;width:24px;height:24px;font-size:12px;cursor:pointer;
-    display:grid;place-items:center;opacity:0;transition:opacity .15s}
-  .act-card:hover .act-bet-btn{opacity:1}
+  /* Аккордеон "Сейчас играют" */
+  .acc-person{border-bottom:1px solid var(--line)}
+  .acc-person:last-child{border-bottom:none}
+  .acc-head{display:flex;align-items:center;gap:8px;padding:8px 4px;cursor:pointer;
+    border-radius:8px;transition:background .12s;user-select:none}
+  .acc-head:hover{background:var(--surface2)}
+  .acc-name{flex:1;font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acc-arrow{font-size:11px;color:var(--muted);flex-shrink:0;transition:transform .15s}
+  .acc-body{padding-bottom:6px}
+  .acc-row{display:flex;align-items:center;gap:10px;padding:6px 4px;border-radius:8px;
+    cursor:pointer;transition:background .12s}
+  .acc-row:hover{background:var(--surface2)}
+  .acc-cover{width:44px;height:44px;object-fit:cover;border-radius:8px;flex-shrink:0;display:block}
+  .acc-nocover{width:44px;height:44px;border-radius:8px;background:var(--ink2);
+    display:grid;place-items:center;font-size:22px;flex-shrink:0}
+  .acc-info{flex:1;min-width:0}
+  .acc-title{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acc-genre{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .acc-pot{font-size:10px;color:#f5c451;font-family:'Space Mono',monospace;display:block;margin-top:2px}
+  .acc-bet-btn{flex-shrink:0;background:var(--ink);border:1px solid var(--line);border-radius:8px;
+    width:28px;height:28px;font-size:13px;cursor:pointer;transition:border-color .15s;
+    display:grid;place-items:center}
+  .acc-bet-btn:hover{border-color:var(--accent-dim)}
   .activity-pot{font-size:10.5px;color:#f5c451;margin-top:6px;cursor:pointer;user-select:none}
   .activity-pot:hover{color:#ffd873}
   .bet-list{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
@@ -1568,44 +1564,56 @@ async function loadFriendsActivity(){
     listEl.innerHTML = `<div class="activity-empty mono">Пока никто из друзей ничего не ${verbSingle}.</div>`;
   } else {
     listEl.innerHTML = byPerson.map(({p, items})=>{
-      const cards = items.map(item=>{
+      const rowList = items.map(item=>{
         const rowIdx = rows.findIndex(r=>r.p.handle===p.handle && r.item.id===item.id);
         const pot = potByItem[item.id];
-        const potBadge = pot ? `<div class="act-pot-badge">🎲 ${pot.total}🟡</div>` : '';
+        const potBadge = pot ? `<span class="acc-pot">🎲 ${pot.total}🟡</span>` : '';
         const cover = item.cover
-          ? `<img class="act-card-cover" src="${esc(item.cover)}" alt="" onerror="this.style.display='none'">`
-          : `<div class="act-card-nocover">${domain==='games'?'🎮':'🎬'}</div>`;
-        return `<div class="act-card" data-idx="${rowIdx}">
+          ? `<img class="acc-cover" src="${esc(item.cover)}" alt="" onerror="this.style.display='none'">`
+          : `<div class="acc-nocover">${domain==='games'?'🎮':'🎬'}</div>`;
+        return `<div class="acc-row" data-idx="${rowIdx}">
           ${cover}
-          <div class="act-card-body">
-            <div class="act-card-title">${esc(item.title)}</div>
-            ${item.genre?`<div class="act-card-genre">${esc(item.genre)}</div>`:''}
+          <div class="acc-info">
+            <div class="acc-title">${esc(item.title)}</div>
+            ${item.genre?`<div class="acc-genre">${esc(item.genre)}</div>`:''}
             ${potBadge}
           </div>
-          <button class="act-bet-btn" data-idx="${rowIdx}" title="Поставить Добрикоин">🎲</button>
+          <button class="acc-bet-btn" data-idx="${rowIdx}" title="Поставить Добрикоин">🎲</button>
         </div>`;
       }).join('');
 
-      return `<div class="act-person">
-        <div class="act-person-head">
+      return `<div class="acc-person">
+        <div class="acc-head" data-open="0">
           <div class="activity-avatar act-av-sm">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
-          <span class="act-person-name">${esc(p.name||p.handle)}</span>
+          <span class="acc-name">${esc(p.name||p.handle)}</span>
           <span class="act-person-cnt">${items.length}</span>
+          <span class="acc-arrow">▾</span>
         </div>
-        <div class="act-hscroll">${cards}</div>
+        <div class="acc-body" style="display:none">${rowList}</div>
       </div>`;
     }).join('');
 
-    listEl.querySelectorAll('.act-bet-btn').forEach(btn=>{
+    // Аккордеон — раскрытие/закрытие
+    listEl.querySelectorAll('.acc-head').forEach(head=>{
+      head.addEventListener('click', ()=>{
+        const body = head.nextElementSibling;
+        const open = head.dataset.open === '1';
+        head.dataset.open = open ? '0' : '1';
+        body.style.display = open ? 'none' : 'block';
+        head.querySelector('.acc-arrow').textContent = open ? '▾' : '▴';
+      });
+    });
+
+    listEl.querySelectorAll('.acc-bet-btn').forEach(btn=>{
       btn.addEventListener('click', e=>{
         e.stopPropagation();
         const { p, item } = activityRows[+btn.dataset.idx]||{};
         if(p && item) openBetModal(p, item);
       });
     });
-    listEl.querySelectorAll('.act-card').forEach(card=>{
-      card.addEventListener('click', ()=>{
-        const { p, item } = activityRows[+card.dataset.idx]||{};
+    listEl.querySelectorAll('.acc-row').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        const { p, item } = activityRows[+row.dataset.idx]||{};
         if(p && item){
           const list = p.items||[];
           list.__owner = p.handle;
