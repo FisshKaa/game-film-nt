@@ -705,6 +705,9 @@
   .rx-pill{display:inline-flex;align-items:center;gap:3px;background:var(--surface2);
     border:1px solid var(--line);border-radius:20px;padding:2px 8px;font-size:13px;cursor:default}
   .rx-pill b{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);font-weight:700}
+  .card-rx{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+  .card-rx .rx-pill{font-size:11px;padding:1px 6px}
+  .card-rx .rx-pill b{font-size:10px}
 
   .foot{text-align:center;margin-top:34px;font-size:12px;color:var(--muted2)}
 
@@ -1871,6 +1874,7 @@ function cardHTML(g, opts){
       <div class="ct">${esc(g.title)}</div>
       ${g.genre?`<div class="cg">${esc(g.genre)}</div>`:''}
       ${tags}
+      <div class="card-rx" data-item-id="${g.id}"></div>
     </div>
   </div>`;
 }
@@ -2084,7 +2088,9 @@ function wireCards(el, list, readonly, onBack){
 
 // Моя доска
 function renderBoard(){
-  fillBoard(document.getElementById('boardArea'), games, { readonly:false, query:searchQuery, status:statusFilter });
+  const el = document.getElementById('boardArea');
+  fillBoard(el, games, { readonly:false, query:searchQuery, status:statusFilter });
+  if(myHandle) loadBoardReactions(el, null);
 }
 
 /* ---------------- Community views ---------------- */
@@ -2175,6 +2181,7 @@ function openFriendProfile(p, init){
       readonly:true, query:fq, status:fSt,
       onBack: ()=>openFriendProfile(p, {fq, fSt})
     });
+    loadBoardReactions(boardEl, p.handle);
   }
   const fs = document.getElementById('friendSearch');
   if(fs) fs.addEventListener('input', ()=>{ fq = fs.value; drawFB(); });
@@ -3054,6 +3061,35 @@ async function loadReactions(owner, itemId){
     if(error) throw error;
     return data || [];
   }catch(e){ return []; }
+}
+
+// Пакетно загружает реакции для всех карточек на доске и вставляет пилюли.
+// el — контейнер доски, owner — ник владельца (null = мой).
+async function loadBoardReactions(el, owner){
+  const cells = el.querySelectorAll('.card-rx[data-item-id]');
+  if(!cells.length) return;
+  const effectiveOwner = owner || myHandle;
+  if(!effectiveOwner) return;
+  const itemIds = [...cells].map(c=>c.dataset.itemId);
+  if(!itemIds.length) return;
+  try{
+    // Один запрос на все item_id сразу
+    const { data } = await sb.from('reactions').select('item_id,emoji')
+      .eq('domain', domain).eq('owner', effectiveOwner)
+      .in('item_id', itemIds);
+    // Группируем по item_id
+    const map = {};
+    (data||[]).forEach(r=>{
+      if(!map[r.item_id]) map[r.item_id] = {};
+      map[r.item_id][r.emoji] = (map[r.item_id][r.emoji]||0) + 1;
+    });
+    cells.forEach(cell=>{
+      const counts = map[cell.dataset.itemId] || {};
+      const pills = REACTION_EMOJIS.filter(e=>counts[e]>0)
+        .map(e=>`<span class="rx-pill">${e}<b>${counts[e]}</b></span>`).join('');
+      cell.innerHTML = pills;
+    });
+  }catch(e){}
 }
 
 // Ставит или убирает реакцию текущего пользователя
