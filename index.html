@@ -117,6 +117,27 @@
   .strip-wrap.rs-case-gold .strip-pointer{background:#f5b942;box-shadow:0 0 12px #f5b942}
   .strip-wrap.rs-case{border-color:#22d3ee55}
   .strip-wrap.rs-case .strip-pointer{background:#22d3ee;box-shadow:0 0 12px #22d3ee}
+  /* Слот-машина: три колонки */
+  .slot-wrap{position:relative;display:flex;gap:8px;justify-content:center;margin:14px auto 6px;padding:8px;
+    border:1px solid var(--line);border-radius:14px;background:var(--ink);width:fit-content;max-width:100%}
+  .slot-reel{width:90px;height:246px;overflow:hidden;border-radius:10px;background:var(--ink2);position:relative}
+  /* Затемнение по краям барабана */
+  .slot-reel::before,.slot-reel::after{content:'';position:absolute;left:0;right:0;z-index:4;pointer-events:none}
+  .slot-reel::before{top:0;height:60px;background:linear-gradient(180deg,var(--ink2),transparent)}
+  .slot-reel::after{bottom:0;height:60px;background:linear-gradient(0deg,var(--ink2),transparent)}
+  .slot-track{display:flex;flex-direction:column;gap:6px;padding:4px;will-change:transform}
+  .slot-cell{width:82px;height:76px;border:2px solid var(--line);border-radius:8px;overflow:hidden;
+    display:flex;flex-direction:column;background:var(--surface);flex:0 0 auto}
+  .slot-cell img{width:100%;flex:1;object-fit:cover;min-height:0}
+  .slot-cell-title{font-size:10px;padding:2px 4px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex-shrink:0}
+  .slot-noimg{flex:1;display:grid;place-items:center;font-size:26px}
+  /* Линия-указатель: центральная строка (top: padding 4px + cellH 76 + gap 6 = 86px от верха трека) */
+  .slot-line{position:absolute;left:4px;right:4px;top:calc(50% - 39px);height:76px;border:2px solid var(--accent);
+    border-radius:8px;background:rgba(255,255,255,.04);box-shadow:0 0 16px var(--accent);pointer-events:none;z-index:6}
+  .slot-dir-down::before{display:none}
+  /* Стрелка направления над каждым барабаном */
+  .slot-arrow{text-align:center;font-size:14px;color:var(--muted);margin-bottom:2px;line-height:1}
+  .slot-col{display:flex;flex-direction:column;align-items:center}
   .confetti-layer{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden}
   .confetti-piece{position:absolute;top:0;width:9px;height:14px;border-radius:2px;animation:confFall linear forwards}
   @keyframes confFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(105vh) rotate(600deg);opacity:.85}}
@@ -1455,7 +1476,7 @@ const SHOP = [
   // Оформление рулетки — барабаны и «ленты» (конфетти теперь бесплатно и всегда)
   { id:'rs_neon',      cat:'roulette', label:'Неон-барабан',    price:250,  cls:'rs-neon',      mode:'wheel' },
   { id:'rs_gold',      cat:'roulette', label:'Золотой барабан', price:250,  cls:'rs-gold',      mode:'wheel' },
-  { id:'rs_slot',      cat:'roulette', label:'Слот-машина',     price:500,  cls:'rs-slot',      mode:'strip', axis:'y' },
+  { id:'rs_slot',      cat:'roulette', label:'Слот-машина',     price:500,  cls:'rs-slot',      mode:'slot' },
   { id:'rs_case',      cat:'roulette', label:'CS-кейс',         price:1000, cls:'rs-case',      mode:'strip', axis:'x' },
   { id:'rs_case_gold', cat:'roulette', label:'CS-кейс Голд',    price:1500, cls:'rs-case-gold', mode:'strip', axis:'x' },
 ];
@@ -2012,6 +2033,64 @@ function launchConfetti(){
   }
   setTimeout(()=>layer.remove(), 3600);
 }
+// Ячейка слота (только обложка/иконка)
+function slotCellHTML(g){
+  const ph = domain==='movies' ? '🎬' : '🎮';
+  const inner = g.cover
+    ? `<img src="${esc(g.cover)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'slot-noimg',textContent:'${ph}'}))"><div class="slot-cell-title">${esc(g.title)}</div>`
+    : `<div class="slot-noimg">${ph}</div><div class="slot-cell-title">${esc(g.title)}</div>`;
+  return `<div class="slot-cell" style="border-color:${statusColor(g.status)}">${inner}</div>`;
+}
+// Три колонки: 0→вниз, 1→вверх, 2→вниз. Стоп разнобоем (0 → 1 → 2), все фиксируются на победителе.
+function beginSlotSpin(pool, winner, secs, done){
+  const CELL_H = 76, GAP = 6, STRIDE = CELL_H + GAP;
+  const VISIBLE = 3; // видимых ячеек в барабане
+  const dirs = ['down','up','down'];
+  // Дополнительная задержка каждого барабана перед остановкой (в секундах)
+  const stopDelay = [0, 0.8, 1.6];
+  let settled = 0;
+
+  dirs.forEach((dir, i)=>{
+    const reel = document.getElementById('slotR'+i);
+    const tr = reel ? reel.querySelector('.slot-track') : null;
+    if(!tr) return;
+
+    // Строим ленту: мусор + победитель точно в середине (winCell) + мусор
+    const N = pool.length;
+    const total = 60;
+    const winCell = 40; // победитель 40-й ячейкой (≈ глубоко внизу)
+    let items = '';
+    for(let k=0;k<total;k++) items += slotCellHTML(k===winCell ? winner : pool[Math.floor(Math.random()*N)]);
+
+    // Сначала сброс без анимации — стартовая позиция зависит от направления
+    tr.style.transition = 'none';
+    tr.innerHTML = items;
+    // Победитель должен стоять в центральной строке (индекс 1 из 3)
+    // finalTy: translateY чтобы ячейка winCell оказалась в средней строке viewport
+    const finalTy = -(winCell * STRIDE - STRIDE); // центральная строка = смещение на STRIDE от верха
+    // Стартовая позиция: отматываем назад на spinRows ячеек в нужную сторону
+    const spinRows = 20 + Math.floor(Math.random()*8);
+    const startTy = dir==='down'
+      ? finalTy - spinRows * STRIDE   // вниз: стартуем выше, едем вниз
+      : finalTy + spinRows * STRIDE;  // вверх: стартуем ниже, едем вверх
+    tr.style.transform = `translateY(${startTy}px)`;
+    // Форсируем reflow
+    void tr.getBoundingClientRect();
+
+    const dur = secs + stopDelay[i];
+    // cubic-bezier: быстро в начале, очень медленно останавливается (резинка)
+    requestAnimationFrame(()=>{
+      tr.style.transition = `transform ${dur}s cubic-bezier(0.08, 0.82, 0.12, 1)`;
+      tr.style.transform = `translateY(${finalTy}px)`;
+    });
+
+    // Последний барабан вызывает done()
+    if(i === 2){
+      const h = ()=>{ tr.removeEventListener('transitionend', h); done(); };
+      tr.addEventListener('transitionend', h);
+    }
+  });
+}
 // Ячейка «ленты» (CS-кейс / слот)
 function stripCellHTML(g){
   const ph = domain==='movies' ? '🎬' : '🎮';
@@ -2072,6 +2151,13 @@ function openRoulette(){
           <div class="wheel-pointer"></div>
           <div class="wheel-rot" id="wheelRot"></div>
           <div class="wheel-center" id="wheelCenter"></div>
+        </div>`
+      : mode==='slot'
+      ? `<div class="slot-wrap${rlSkinCls}" id="wheelWrap">
+          <div class="slot-line"></div>
+          <div class="slot-col"><div class="slot-arrow">↓</div><div class="slot-reel" id="slotR0"><div class="slot-track"></div></div></div>
+          <div class="slot-col"><div class="slot-arrow">↑</div><div class="slot-reel" id="slotR1"><div class="slot-track"></div></div></div>
+          <div class="slot-col"><div class="slot-arrow">↓</div><div class="slot-reel" id="slotR2"><div class="slot-track"></div></div></div>
         </div>`
       : `<div class="strip-wrap${rlSkinCls}" id="wheelWrap" data-axis="${axis}">
           <div class="strip-pointer"></div>
@@ -2161,9 +2247,18 @@ function openRoulette(){
       wheelRot.innerHTML = pool.length
         ? buildWheelSVG(pool)
         : `<div class="wheel-empty">Выбери хотя бы один статус, чтобы собрать колесо</div>`;
+    } else if(mode==='slot'){
+      [0,1,2].forEach(i=>{
+        const reel = document.getElementById('slotR'+i);
+        const tr = reel && reel.querySelector('.slot-track');
+        if(!tr) return;
+        tr.style.transition='none'; tr.style.transform='translateY(0)';
+        if(!pool.length){ tr.innerHTML=''; return; }
+        let cells=''; for(let k=0;k<9;k++) cells += slotCellHTML(pool[Math.floor(Math.random()*pool.length)]);
+        tr.innerHTML = cells;
+      });
     } else {
       if(!pool.length){ stripTrack.innerHTML = ''; return; }
-      // статичная лента до старта: случайные ячейки
       let cells = '';
       for(let i=0;i<24;i++) cells += stripCellHTML(pool[Math.floor(Math.random()*pool.length)]);
       stripTrack.style.transition = 'none';
@@ -2235,8 +2330,6 @@ function openRoulette(){
       rotation += advance;
     }
 
-    const animEl = (mode==='wheel') ? wheelRot : stripTrack;
-
     const beginSpin = ()=>{
       if(mode==='wheel'){
         if(centerEl) centerEl.classList.add('dancing');
@@ -2244,25 +2337,14 @@ function openRoulette(){
           wheelRot.style.transition = `transform ${secs}s cubic-bezier(0.15,0.68,0.10,1)`;
           wheelRot.style.transform = `rotate(${rotation}deg)`;
         });
+      } else if(mode==='slot'){
+        beginSlotSpin(pool, winner, secs, finish);
       } else {
         beginStripSpin(pool, winner, secs);
       }
     };
 
-    const hasMusic = !!parseYouTube(musicInp.value);
-    if(hasMusic){
-      spinBtn.textContent = 'Ждём музыку…';
-      let go = false;
-      const fire = ()=>{ if(go) return; go = true; beginSpin(); };
-      startMusic(fire);
-      setTimeout(fire, 15000);   // фолбэк: если музыка не завелась за 15 c — крутим без синхронизации
-    } else {
-      startMusic();              // без ссылки просто очистит хост
-      beginSpin();
-    }
-
-    const onEnd = ()=>{
-      animEl.removeEventListener('transitionend', onEnd);
+    const finish = ()=>{
       stopMusic();
       if(centerEl) centerEl.classList.remove('dancing');
       spinning = false; spinBtn.disabled = false; spinBtn.textContent = 'Крутить снова';
@@ -2282,7 +2364,25 @@ function openRoulette(){
       if(fbtn) fbtn.addEventListener('click', ()=>showFriendReviews(fbtn, winner.title));
       launchConfetti();   // конфетти теперь всегда
     };
-    animEl.addEventListener('transitionend', onEnd);
+
+    // Барабан и лента завершаются по transitionend; слот сам вызовет finish() после последней колонки
+    if(mode==='wheel' || mode==='strip'){
+      const animEl = (mode==='wheel') ? wheelRot : stripTrack;
+      const onEnd = ()=>{ animEl.removeEventListener('transitionend', onEnd); finish(); };
+      animEl.addEventListener('transitionend', onEnd);
+    }
+
+    const hasMusic = !!parseYouTube(musicInp.value);
+    if(hasMusic){
+      spinBtn.textContent = 'Ждём музыку…';
+      let go = false;
+      const fire = ()=>{ if(go) return; go = true; beginSpin(); };
+      startMusic(fire);
+      setTimeout(fire, 15000);   // фолбэк: если музыка не завелась за 15 c — крутим без синхронизации
+    } else {
+      startMusic();              // без ссылки просто очистит хост
+      beginSpin();
+    }
   }
 
   // Ищет игру по названию у всех опубликованных друзей и показывает их оценки/обзоры
