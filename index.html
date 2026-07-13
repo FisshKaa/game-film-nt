@@ -754,6 +754,18 @@
   .rx-active .rx-cnt{color:var(--accent)}
   .rx-hint{font-size:12px;color:var(--muted2);font-style:italic;margin-left:4px}
   .rx-loading{color:var(--muted2);font-size:13px;padding:6px 0}
+  /* Недавние коллекции в сайдбаре */
+  .rc-item{display:flex;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line);
+    cursor:pointer;border-radius:8px;transition:background .12s}
+  .rc-item:last-child{border-bottom:none}
+  .rc-item:hover{background:var(--surface2)}
+  .rc-collage{width:56px;height:40px;flex-shrink:0;border-radius:8px;overflow:hidden}
+  .rc-collage .coll-cover1,.rc-collage .coll-collage,.rc-collage .coll-nocover{width:56px!important;height:40px!important;aspect-ratio:unset;border-radius:0}
+  .rc-info{min-width:0;flex:1}
+  .rc-who{display:flex;align-items:center;gap:5px;margin-bottom:2px}
+  .rc-name{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rc-title{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rc-cnt{font-size:11px;color:var(--muted2)}
   .rx-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
   .rx-pill{display:inline-flex;align-items:center;gap:3px;background:var(--surface2);
     border:1px solid var(--line);border-radius:20px;padding:2px 8px;font-size:13px;cursor:default}
@@ -812,6 +824,8 @@
     <h3 id="reviewsTitle">Недавние обзоры</h3>
     <button class="activity-refresh mono" id="reviewsRefreshBtn">↻ обновить</button>
     <div id="reviewsList"><div class="activity-empty mono">Загрузка…</div></div>
+    <h3 style="margin-top:18px">Недавние коллекции</h3>
+    <div id="recentCollsList"><div class="activity-empty mono">Загрузка…</div></div>
   </aside>
 </div>
 
@@ -1667,6 +1681,46 @@ async function loadFriendsReviews(){
       const list = p.items || [];
       list.__owner = p.handle;
       openDetail(item.id, list, true);
+    });
+  });
+}
+
+async function loadRecentCollections(){
+  const el = document.getElementById('recentCollsList');
+  if(!el) return;
+  el.innerHTML = '<div class="activity-empty mono">Загрузка…</div>';
+  const profiles = await listProfiles();
+  const entries = [];
+  profiles.forEach(p=>{
+    if(myHandle && p.handle === myHandle) return;
+    (p.collections||[]).forEach(c=>{ if(c && c.title) entries.push({ p, coll:c }); });
+  });
+  entries.sort((a,b)=>(b.coll.created||0)-(a.coll.created||0));
+  const top = entries.slice(0, 2);
+  if(!top.length){ el.innerHTML = '<div class="activity-empty mono">Пока нет коллекций от друзей.</div>'; return; }
+  el.innerHTML = top.map(({p, coll}, idx)=>{
+    const saved = games; games = p.items||[];
+    const preview = collageHTML(coll);
+    games = saved;
+    const cnt = (coll.itemIds||[]).length;
+    return `<div class="rc-item" data-idx="${idx}">
+      <div class="rc-collage">${preview}</div>
+      <div class="rc-info">
+        <div class="rc-who">
+          <span class="activity-avatar" style="width:18px;height:18px;font-size:11px;display:inline-grid;place-items:center;border-radius:5px;background:var(--ink2);border:1px solid var(--line);vertical-align:middle">${esc(p.avatar||'🎮')}</span>
+          <span class="rc-name">${esc(p.name||p.handle)}</span>
+        </div>
+        <div class="rc-title">${esc(coll.title)}</div>
+        <div class="rc-cnt">${cnt} ${domain==='movies'?'фильм':'игр'}${cnt===1?'а':cnt<5?'ы':''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.rc-item').forEach(item=>{
+    item.addEventListener('click', ()=>{
+      const { p, coll } = top[+item.dataset.idx];
+      const saved = games; games = p.items||[];
+      openCollectionDetail(coll, true, p.handle);
+      games = saved;
     });
   });
 }
@@ -3624,12 +3678,13 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   render();
   loadFriendsActivity();
   loadFriendsReviews();
+  loadRecentCollections();
   loadLeaderboard();
   syncFromCloud(domain==='games'?'movies':'games'); // фоновая подтяжка второго домена, без ожидания
   const activityRefreshBtn = document.getElementById('activityRefreshBtn');
   if(activityRefreshBtn) activityRefreshBtn.addEventListener('click', loadFriendsActivity);
   const reviewsRefreshBtn = document.getElementById('reviewsRefreshBtn');
-  if(reviewsRefreshBtn) reviewsRefreshBtn.addEventListener('click', loadFriendsReviews);
+  if(reviewsRefreshBtn) reviewsRefreshBtn.addEventListener('click', ()=>{ loadFriendsReviews(); loadRecentCollections(); });
   openSharedProfileFromURL();
 })();
 </script>
