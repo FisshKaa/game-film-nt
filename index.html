@@ -1814,6 +1814,7 @@ async function switchDomain(dom){
   render();
   loadFriendsActivity();
   loadFriendsReviews();
+  loadRecentCollections();
   coinBalance = await loadCoinBalance();
   balanceStore[domain] = coinBalance;
   const pulled = await syncFromCloud(domain);
