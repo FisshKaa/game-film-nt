@@ -581,6 +581,11 @@
   .rl-secs{width:76px;background:var(--ink);border:1px solid var(--line);border-radius:9px;color:var(--text);
     font-family:'Space Mono',monospace;font-size:15px;padding:8px 10px;text-align:center;outline:none}
   .rl-secs:focus{border-color:var(--accent-dim)}
+  .rl-mode-switch{display:flex;gap:3px;background:var(--ink2);border:1px solid var(--line);border-radius:9px;padding:3px}
+  .rl-mode-btn{background:transparent;color:var(--muted);font-size:13px;font-weight:700;
+    padding:4px 10px;border-radius:6px;cursor:pointer;transition:background .15s,color .15s}
+  .rl-mode-btn.active{background:var(--accent);color:#12121a}
+  .rl-mode-btn:hover:not(.active){color:var(--text)}
   .wheel-wrap{position:relative;width:290px;max-width:88%;margin:14px auto 6px;aspect-ratio:1}
   .wheel-rot{width:100%;height:100%;transform:rotate(0deg);will-change:transform}
   .wheel-rot svg{display:block;width:100%;height:100%}
@@ -1208,6 +1213,13 @@ async function loadCenterCfg(){
 async function saveCenterCfg(cfg){
   try{ await window.storage.set(KEY_CENTER, JSON.stringify(cfg), false); }catch(e){}
 }
+const KEY_WHEEL_LABEL = 'roulette-label-mode';
+async function loadWheelLabelMode(){
+  try{ const r = await window.storage.get(KEY_WHEEL_LABEL, false); return r ? r.value : 'images'; }catch(e){ return 'images'; }
+}
+async function saveWheelLabelMode(m){
+  try{ await window.storage.set(KEY_WHEEL_LABEL, m, false); }catch(e){}
+}
 // Публикует профиль текущего домена в его витрину (таблица public_profiles в Supabase)
 async function publishProfile(handle){
   const record = {
@@ -1797,6 +1809,7 @@ let collections = [];     // активные коллекции текущег�
 let musicUrl = '';
 let rlVolume = 60;        // громкость музыки рулетки (0–100)
 let centerCfg = { type:'emoji', value:'💃' };
+let wheelLabelMode = 'images'; // 'images' | 'text'
 const CENTER_EMOJI = ['💃','🕺','🎮','🎲','🔥','🐸','🤖','👾'];
 
 async function switchDomain(dom){
@@ -2517,18 +2530,19 @@ function buildWheelSVG(pool){
     paths += `<path d="M${cx} ${cy} L${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A${R} ${R} 0 ${large} 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} Z" fill="${col}" stroke="var(--ink)" stroke-width="1.5"/>`;
     const mid = a0 + seg/2;
     const lp = wheelPolar(cx,cy,picR,mid);
-    if(g.cover){
+    if(wheelLabelMode==='images' && g.cover){
       // Картинка в круглом clip-path
       defs += `<clipPath id="cp${i}"><circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir}"/></clipPath>`;
       labels += `<image href="${g.cover}" x="${(lp.x-ir).toFixed(2)}" y="${(lp.y-ir).toFixed(2)}" width="${ir*2}" height="${ir*2}" clip-path="url(#cp${i})" preserveAspectRatio="xMidYMid slice"/>`;
-      // Тонкая рамка вокруг картинки
       labels += `<circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir}" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1"/>`;
     } else {
-      // Нет обложки — рисуем текст как раньше
-      let rot = mid; if(mid > 90 && mid < 270) rot += 180;
-      const fs = N > 18 ? 8 : (N > 12 ? 9.5 : 11);
-      const maxCh = N > 18 ? 7 : (N > 12 ? 10 : 14);
-      labels += `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${lp.x.toFixed(2)} ${lp.y.toFixed(2)})" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-family="'Hanken Grotesk',sans-serif" font-weight="600" fill="#12121a">${esc(truncTitle(g.title, maxCh))}</text>`;
+      // Текст — поперёк сегмента (перпендикулярно радиусу, читается от левого края к правому)
+      const fs = N > 18 ? 7 : (N > 12 ? 9 : N > 8 ? 10 : 11);
+      const maxCh = N > 18 ? 7 : (N > 12 ? 10 : N > 8 ? 12 : 15);
+      // Поворачиваем на -90° (влево вдоль клина), в нижней половине +90° чтобы не вверх ногами
+      let rot = mid - 90;
+      if(mid > 90 && mid < 270) rot = mid + 90;
+      labels += `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${lp.x.toFixed(2)} ${lp.y.toFixed(2)})" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-family="'Hanken Grotesk',sans-serif" font-weight="700" fill="#12121a">${esc(truncTitle(g.title, maxCh))}</text>`;
     }
   }
   defs += '</defs>';
@@ -2699,6 +2713,10 @@ function openRoulette(){
       <span>Время вращения:</span>
       <input type="number" id="spinSecs" class="rl-secs" value="5" min="1" max="240" step="1">
       <span>сек</span>
+      <div class="rl-mode-switch" id="rlModeSwitch" style="margin-left:auto">
+        <button class="rl-mode-btn ${wheelLabelMode==='images'?'active':''}" data-mode="images" title="Картинки">🖼</button>
+        <button class="rl-mode-btn ${wheelLabelMode==='text'?'active':''}" data-mode="text" title="Текст">Aa</button>
+      </div>
     </div>
     <div class="rl-music">
       <span class="mnote">🎵</span>
@@ -2779,6 +2797,14 @@ function openRoulette(){
   }
 
   musicInp.addEventListener('change', ()=>{ musicUrl = musicInp.value.trim(); saveMusicUrl(musicUrl); });
+  document.querySelectorAll('.rl-mode-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      wheelLabelMode = btn.dataset.mode;
+      saveWheelLabelMode(wheelLabelMode);
+      document.querySelectorAll('.rl-mode-btn').forEach(b=>b.classList.toggle('active', b.dataset.mode===wheelLabelMode));
+      buildWheel(); // перестраиваем колесо с новым режимом
+    });
+  });
   const volInp = document.getElementById('rlVol');
   const volNum = document.getElementById('rlVolNum');
   if(volInp) volInp.addEventListener('input', ()=>{
@@ -3760,6 +3786,7 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   balanceStore[domain] = coinBalance;
   musicUrl = await loadMusicUrl();
   rlVolume = await loadRlVolume();
+  wheelLabelMode = await loadWheelLabelMode();
   const cc = await loadCenterCfg(); if(cc) centerCfg = cc;
 
   // Проверка сезона косметики: если сезон в базе отличается от локального — полный сброс owned и cosmetics
