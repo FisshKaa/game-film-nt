@@ -300,6 +300,9 @@
   .bet-sup-inp{width:52px;background:var(--ink);border:1px solid var(--line);border-radius:7px;
     color:var(--text);font-size:12px;padding:2px 6px;text-align:center}
   .bet-sup-confirm{padding:2px 9px!important;font-size:11px!important}
+  .bet-sup-cancel{background:var(--surface2);border:1px solid var(--line);border-radius:20px;
+    color:var(--muted);font-size:11px;padding:2px 8px;cursor:pointer}
+  .bet-sup-cancel:hover{color:var(--text);border-color:var(--muted2)}
   .resolve-lose:hover{border-color:var(--s);color:var(--s)}
 
   /* ---------- Friends reviews sidebar ---------- */
@@ -1297,9 +1300,9 @@ function openBetModal(p, item){
             const wrap = document.createElement('span');
             wrap.className = 'bet-sup-form';
             wrap.innerHTML = `<input type="number" class="bet-sup-inp" min="1" max="${coinBalance}" value="${supAmt}">
-              <button class="bet-sup-confirm btn sm">✓</button>`;
-            wrap.querySelector('.bet-sup-confirm').addEventListener('click', async ()=>{
-              const amount = parseInt(wrap.querySelector('.bet-sup-inp').value, 10);
+              <button class="bet-sup-confirm btn sm">✓</button>
+              <button class="bet-sup-cancel">✕</button>`;
+            wrap.querySelector('.bet-sup-confirm').addEventListener('click', async ()=>{              const amount = parseInt(wrap.querySelector('.bet-sup-inp').value, 10);
               if(!amount || amount < 1 || amount > coinBalance) return;
               wrap.innerHTML = '<span class="rx-loading">…</span>';
               await addCoins(-amount);
@@ -1314,6 +1317,7 @@ function openBetModal(p, item){
               }catch(e){ console.error('support bet failed', e); }
               await loadExisting();
             });
+            wrap.querySelector('.bet-sup-cancel').addEventListener('click', ()=>loadExisting());
             return wrap;
           })());
         });
@@ -1461,12 +1465,18 @@ async function loadFriendsActivity(){
 
   let potByItem = {};
   try{
-    const { data: bets } = await sb.from('coin_bets')
-      .select('*').eq('domain', domain).eq('status','pending');
+    const [{ data: bets }, { data: supports }] = await Promise.all([
+      sb.from('coin_bets').select('*').eq('domain', domain).eq('status','pending'),
+      sb.from('bet_supports').select('item_id,amount').eq('domain', domain).eq('status','pending')
+    ]);
     (bets||[]).forEach(b=>{
       if(!potByItem[b.item_id]) potByItem[b.item_id] = { count:0, total:0, bets:[] };
       potByItem[b.item_id].count++; potByItem[b.item_id].total += b.amount;
       potByItem[b.item_id].bets.push(b);
+    });
+    // Прибавляем суммы поддержек к общему pot
+    (supports||[]).forEach(s=>{
+      if(potByItem[s.item_id]) potByItem[s.item_id].total += s.amount;
     });
   }catch(e){}
 
