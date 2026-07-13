@@ -3285,12 +3285,15 @@ async function renderReactions(container, owner, itemId, isOwn){
    ================================================================ */
 
 function collageHTML(coll, size){
+  const szStyle = size ? `style="width:${size}px;height:${size}px;flex-shrink:0"` : '';
+  const szClass = size ? 'coll-detail-collage' : '';
+  // Если задана своя обложка — используем её
+  if(coll.cover){
+    return `<div class="coll-cover1 ${szClass}" ${szStyle}><img src="${esc(coll.cover)}" alt="" onerror="this.closest('.coll-cover1').innerHTML='${domain==='movies'?'🎬':'🎮'}'"></div>`;
+  }
   const items = (coll.itemIds||[])
     .map(id=>games.find(g=>g.id===id)).filter(Boolean);
   const covers = items.map(g=>g.cover).filter(Boolean).slice(0,4);
-  // size используется только для деталей (маленький превью), если передан — inline-стиль
-  const szStyle = size ? `style="width:${size}px;height:${size}px;flex-shrink:0"` : '';
-  const szClass = size ? 'coll-detail-collage' : '';
   if(!covers.length){
     return `<div class="coll-nocover ${szClass}" ${szStyle}>${domain==='movies'?'🎬':'🎮'}</div>`;
   }
@@ -3405,11 +3408,22 @@ function openCollectionForm(editColl){
       <span class="coll-pick-title">${esc(g.title)}</span>
       <span class="coll-pick-score" style="color:${tierOf(g.score).color}">${g.score.toFixed(1)}</span>
     </label>`).join('');
+  let collCover = isEdit ? (editColl.cover||'') : '';
   showModal(`
     <button class="close" onclick="__close()">×</button>
     <h3>${isEdit?'Редактировать коллекцию':'Новая коллекция'}</h3>
     <label>Название коллекции *</label>
     <input type="text" id="collTitle" value="${isEdit?esc(editColl.title):''}" placeholder="напр. Ведьмак — вся серия" maxlength="80">
+    <label>Обложка коллекции (необязательно)</label>
+    <div class="cover-preview" id="collCoverPrev">${collCover?`<img src="${esc(collCover)}" alt="" onerror="this.parentNode.textContent='ссылка не открылась'">`:'нет обложки'}</div>
+    <div class="cover-area">
+      <input type="text" id="collCoverUrl" placeholder="Вставь ссылку на картинку или GIF…" value="${collCover&&!collCover.startsWith('data:')?esc(collCover):''}">
+      <div class="cover-btns">
+        <button type="button" class="btn ghost sm" id="collUploadBtn">Загрузить файл</button>
+        <button type="button" class="btn ghost sm" id="collClearCover">Убрать</button>
+      </div>
+    </div>
+    <input type="file" id="collFileInp" accept="image/*" style="display:none">
     <label>Общий обзор на серию</label>
     <textarea id="collReview" placeholder="Впечатления от серии в целом…" style="min-height:90px">${isEdit?esc(editColl.review||''):''}</textarea>
     <label>Выбери ${domain==='movies'?'фильмы':'игры'} (${games.length})</label>
@@ -3420,6 +3434,24 @@ function openCollectionForm(editColl){
       <button class="btn" id="collSave" style="flex:1">${isEdit?'Сохранить':'Создать'}</button>
     </div>
   `);
+
+  // Обложка
+  const collPrev = document.getElementById('collCoverPrev');
+  const collUrlInp = document.getElementById('collCoverUrl');
+  const collFileInp = document.getElementById('collFileInp');
+  function drawCollPrev(){
+    collPrev.innerHTML = collCover
+      ? `<img src="${esc(collCover)}" alt="" onerror="this.parentNode.textContent='ссылка не открылась'">`
+      : 'нет обложки';
+  }
+  collUrlInp.addEventListener('input', ()=>{ collCover = collUrlInp.value.trim(); drawCollPrev(); });
+  document.getElementById('collUploadBtn').addEventListener('click', ()=>collFileInp.click());
+  document.getElementById('collClearCover').addEventListener('click', ()=>{ collCover=''; collUrlInp.value=''; drawCollPrev(); });
+  collFileInp.addEventListener('change', async ()=>{
+    const f = collFileInp.files[0]; if(!f) return;
+    try{ collCover = await downscaleImage(f); collUrlInp.value=''; drawCollPrev(); }
+    catch(e){}
+  });
   // Подсветка выбранных
   modal.querySelectorAll('.coll-pick-item input').forEach(cb=>{
     cb.addEventListener('change', ()=>cb.closest('.coll-pick-item').classList.toggle('sel', cb.checked));
@@ -3431,7 +3463,7 @@ function openCollectionForm(editColl){
     const itemIds = [...modal.querySelectorAll('.coll-pick-item input:checked')].map(cb=>cb.value);
     if(!title){ err.textContent = 'Впиши название.'; return; }
     if(itemIds.length < 2){ err.textContent = 'Выбери хотя бы 2 обзора.'; return; }
-    const coll = { id: isEdit?editColl.id:('c'+Date.now()), title, review, itemIds, created: isEdit?editColl.created:Date.now() };
+    const coll = { id: isEdit?editColl.id:('c'+Date.now()), title, review, cover: collCover, itemIds, created: isEdit?editColl.created:Date.now() };
     if(isEdit){ collections = collections.map(c=>c.id===coll.id?coll:c); }
     else { collections = [coll, ...collections]; }
     await saveCollections(domain, collections);
