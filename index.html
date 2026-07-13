@@ -634,6 +634,18 @@
   .rd-body{font-size:15.5px;line-height:1.7;white-space:pre-wrap;color:#dcdaea}
   .rd-body.empty{color:var(--muted2);font-style:italic}
   .rd-actions{display:flex;gap:10px;margin-top:22px;border-top:1px solid var(--line);padding-top:18px}
+  .rx-container{margin-top:16px;min-height:36px}
+  .rx-wrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .rx-btn{background:var(--surface2);border:1px solid var(--line);border-radius:24px;
+    padding:5px 12px;font-size:16px;cursor:pointer;display:flex;align-items:center;gap:5px;
+    transition:background .15s,border-color .15s,transform .1s;color:var(--text)}
+  .rx-btn:hover:not(:disabled){background:var(--surface);border-color:var(--muted2);transform:scale(1.08)}
+  .rx-btn.rx-active{background:var(--accent-dim);border-color:var(--accent)}
+  .rx-btn:disabled{opacity:.5;cursor:default}
+  .rx-cnt{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;color:var(--muted)}
+  .rx-active .rx-cnt{color:var(--accent)}
+  .rx-hint{font-size:12px;color:var(--muted2);font-style:italic;margin-left:4px}
+  .rx-loading{color:var(--muted2);font-size:13px;padding:6px 0}
 
   .foot{text-align:center;margin-top:34px;font-size:12px;color:var(--muted2)}
 
@@ -1950,10 +1962,11 @@ function openFriendProfile(p, init){
     <div id="friendBoard"></div>
   `, ('fp-modal'+bgClass(p.cosmetics)));
   const boardEl = document.getElementById('friendBoard');
+  list.__owner = p.handle;   // нужен для реакций в openDetail
   function drawFB(){
     fillBoard(boardEl, list, {
       readonly:true, query:fq, status:fSt,
-      onBack: ()=>openFriendProfile(p, {fq, fSt})   // вернуться в этот профиль с тем же поиском/фильтром
+      onBack: ()=>openFriendProfile(p, {fq, fSt})
     });
   }
   const fs = document.getElementById('friendSearch');
@@ -2822,6 +2835,80 @@ function downscaleImage(file, maxW=420){
 }
 
 /* ---------------- Review detail ---------------- */
+/* ---------------- Реакции на обзоры ---------------- */
+const REACTION_EMOJIS = ['❤️','🔥','😂','😮','👏'];
+
+// Загружает реакции к конкретному обзору (domain + owner + item_id)
+async function loadReactions(owner, itemId){
+  try{
+    const { data, error } = await sb.from('reactions')
+      .select('emoji,reactor')
+      .eq('domain', domain).eq('owner', owner).eq('item_id', itemId);
+    if(error) throw error;
+    return data || [];
+  }catch(e){ return []; }
+}
+
+// Ставит или убирает реакцию текущего пользователя
+async function toggleReaction(owner, itemId, emoji){
+  if(!myHandle) return null;
+  const id = `${domain}:${owner}:${itemId}:${myHandle}`;
+  try{
+    // Проверяем, есть ли уже такая реакция
+    const { data: existing } = await sb.from('reactions')
+      .select('emoji').eq('id', id).maybeSingle();
+    if(existing && existing.emoji === emoji){
+      // Убираем
+      await sb.from('reactions').delete().eq('id', id);
+      return null;
+    } else {
+      // Ставим (upsert — заменяет если уже стояла другая)
+      await sb.from('reactions').upsert({ id, domain, owner, item_id: itemId, reactor: myHandle, emoji });
+      return emoji;
+    }
+  }catch(e){ console.error('reaction failed', e); return null; }
+}
+
+// Рендерит блок реакций в обзоре. owner=null → мой обзор (ник = myHandle)
+async function renderReactions(container, owner, itemId){
+  const effectiveOwner = owner || myHandle || '';
+  if(!effectiveOwner){ container.innerHTML = ''; return; }
+
+  container.innerHTML = '<div class="rx-loading">…</div>';
+  const rows = await loadReactions(effectiveOwner, itemId);
+
+  // Группируем по emoji
+  const counts = {};
+  const myReaction = {};
+  REACTION_EMOJIS.forEach(e=>{ counts[e]=0; myReaction[e]=false; });
+  rows.forEach(r=>{
+    if(counts[r.emoji]!==undefined) counts[r.emoji]++;
+    if(r.reactor === myHandle) myReaction[r.emoji] = true;
+  });
+
+  const canReact = !!myHandle && owner !== myHandle; // нельзя реагировать на свой обзор
+  const total = Object.values(counts).reduce((a,b)=>a+b,0);
+
+  container.innerHTML = `<div class="rx-wrap">
+    ${REACTION_EMOJIS.map(e=>`
+      <button class="rx-btn${myReaction[e]?' rx-active':''}" data-emoji="${e}" ${!canReact?'disabled':''} title="${canReact?'Поставить реакцию':''}">
+        ${e}${counts[e]>0?`<span class="rx-cnt">${counts[e]}</span>`:''}
+      </button>`).join('')}
+    ${!myHandle?`<span class="rx-hint">Опубликуй профиль, чтобы ставить реакции</span>`:''}
+    ${myHandle===owner?`<span class="rx-hint">Нельзя реагировать на свой обзор</span>`:''}
+  </div>`;
+
+  if(canReact){
+    container.querySelectorAll('.rx-btn').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        btn.disabled = true;
+        await toggleReaction(effectiveOwner, itemId, btn.dataset.emoji);
+        await renderReactions(container, owner, itemId);
+      });
+    });
+  }
+}
+
 function openDetail(id, list, readonly, onBack, backLabel){
   list = list || games;
   const g = list.find(x=>x.id===id); if(!g) return;
@@ -2844,12 +2931,18 @@ function openDetail(id, list, readonly, onBack, backLabel){
     <div class="rd-body ${g.review?'':'empty'}">${g.review?esc(g.review):'Обзор пока не написан.'}</div>
     ${domain==='movies'?movieLinkHTML(g):''}
     ${domain==='games'?`<a class="kp-link" href="${gameUrl(g)}" target="_blank" rel="noopener">📖 Открыть в Википедии ↗</a>`:''}
+    <div class="rx-container" id="rxContainer"></div>
     ${readonly ? '' : `<div class="rd-actions">
       <button class="btn ghost sm" id="editG">Редактировать</button>
       <button class="btn ghost sm" id="delG" style="color:var(--s)">Удалить</button>
     </div>`}
   `);
   if(onBack){ const bb=document.getElementById('backBtn'); if(bb) bb.addEventListener('click', onBack); }
+
+  // Реакции: readonly=true → чужой обзор (owner = нужен снаружи), readonly=false → мой
+  const rxContainer = document.getElementById('rxContainer');
+  if(rxContainer) renderReactions(rxContainer, readonly ? (list.__owner || null) : null, g.id);
+
   if(readonly) return;
   document.getElementById('editG').addEventListener('click', ()=>openForm(id));
   armButton(document.getElementById('delG'), 'Точно удалить?', async ()=>{
