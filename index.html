@@ -689,6 +689,56 @@
   .rd-body{font-size:15.5px;line-height:1.7;white-space:pre-wrap;color:#dcdaea}
   .rd-body.empty{color:var(--muted2);font-style:italic}
   .rd-actions{display:flex;gap:10px;margin-top:22px;border-top:1px solid var(--line);padding-top:18px}
+
+  /* Вкладки Обзоры / Коллекции */
+  .board-tabs{display:flex;gap:4px;margin:10px 0 12px;background:var(--ink2);border:1px solid var(--line);
+    border-radius:10px;padding:4px;width:fit-content}
+  .btab{background:transparent;color:var(--muted);font-size:13px;font-weight:700;padding:6px 14px;
+    border-radius:7px;font-family:'Bricolage Grotesque',sans-serif;transition:background .15s,color .15s;
+    display:flex;align-items:center;gap:5px}
+  .btab.active{background:var(--accent);color:#12121a}
+  .btab:hover:not(.active){color:var(--text)}
+  .btab-cnt{font-family:'Space Mono',monospace;font-size:11px;opacity:.7}
+
+  /* Карточки коллекций */
+  .coll-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-top:4px}
+  .coll-card{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    cursor:pointer;transition:border-color .15s,transform .15s;display:flex;flex-direction:column}
+  .coll-card:hover{border-color:var(--muted2);transform:translateY(-2px)}
+  .coll-card-body{padding:10px 12px;flex:1}
+  .coll-card-title{font-weight:700;font-size:14px;line-height:1.3;margin-bottom:5px}
+  .coll-card-meta{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+  .coll-score{font-family:'Space Mono',monospace;font-weight:700;font-size:14px}
+  .coll-cnt{font-size:11px}
+  /* Коллаж обложек */
+  .coll-cover1 img{width:100%;height:100%;object-fit:cover;display:block;border-radius:0}
+  .coll-collage{display:grid;gap:2px}
+  .coll-n2{grid-template-columns:1fr 1fr}
+  .coll-n3{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+  .coll-n3 img:first-child{grid-row:1/3}
+  .coll-n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
+  .coll-collage img{width:100%;height:100%;object-fit:cover;display:block}
+  .coll-nocover{background:var(--ink2);border-radius:0;display:grid;place-items:center;font-size:28px}
+  /* Детальный просмотр */
+  .coll-detail-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+  .coll-detail-items{display:flex;gap:10px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:4px}
+  .coll-detail-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;
+    width:70px;text-align:center;transition:transform .15s}
+  .coll-detail-item:hover{transform:translateY(-2px)}
+  .coll-detail-item img{width:48px;height:48px;object-fit:cover;border-radius:8px;border:1px solid var(--line)}
+  .coll-detail-name{font-size:10px;line-height:1.2;color:var(--muted);max-width:70px;overflow:hidden;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+  .coll-detail-score{font-family:'Space Mono',monospace;font-size:11px;font-weight:700}
+  /* Форма создания */
+  .coll-pick-list{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;
+    border:1px solid var(--line);border-radius:10px;padding:6px;margin-top:4px}
+  .coll-pick-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;
+    cursor:pointer;transition:background .12s}
+  .coll-pick-item:hover{background:var(--surface2)}
+  .coll-pick-item.sel{background:var(--surface2);border:1px solid var(--accent-dim)}
+  .coll-pick-item input{flex-shrink:0;accent-color:var(--accent)}
+  .coll-pick-title{flex:1;font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .coll-pick-score{font-family:'Space Mono',monospace;font-size:11px;flex-shrink:0}
   .rx-container{margin-top:16px;min-height:36px}
   .rx-wrap{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
   .rx-btn{background:var(--surface2);border:1px solid var(--line);border-radius:24px;
@@ -876,6 +926,18 @@ async function loadItems(dom){
 async function saveItems(dom, list){
   try{ await window.storage.set(DOMAINS[dom].itemsKey, JSON.stringify(list), false); }
   catch(e){ console.error('save items failed', e); }
+}
+// Ключи коллекций
+function collKey(dom){ return DOMAINS[dom].itemsKey.replace('list','collections'); }
+async function loadCollections(dom){
+  try{ const r = await window.storage.get(collKey(dom)); return r ? JSON.parse(r.value) : []; }
+  catch(e){ return []; }
+}
+async function saveCollections(dom, list){
+  collectionsStore[dom] = list;
+  try{ await window.storage.set(collKey(dom), JSON.stringify(list), false); }
+  catch(e){}
+  if(myHandle){ try{ await publishProfile(myHandle); }catch(e){} }
 }
 // Сохраняет текущий домен + при необходимости обновляет витрину
 async function saveGames(list){
@@ -1127,7 +1189,7 @@ async function publishProfile(handle){
     domain, handle,
     name: profile.name, tag: profile.tag, avatar: profile.avatar,
     cosmetics: profile.cosmetics || null,
-    items: games, updated: Date.now()
+    items: games, collections, updated: Date.now()
   };
   try{ await sb.from('public_profiles').upsert(record); }
   catch(e){ console.error('publishProfile failed', e); }
@@ -1617,9 +1679,12 @@ const COIN_START = 100;
 const COIN_REVIEW_REWARD = 100;
 let games = [];           // активный список текущего домена
 let currentView = 'me';   // 'me' | 'friends'
+let boardTab = 'reviews'; // 'reviews' | 'collections'
 let myHandle = '';        // ник в текущем домене
 let searchQuery = '';
 let statusFilter = 'all';
+let collectionsStore = { games:[], movies:[] }; // коллекции по домену
+let collections = [];     // активные коллекции текущего домена
 let musicUrl = '';
 let rlVolume = 60;        // громкость музыки рулетки (0–100)
 let centerCfg = { type:'emoji', value:'💃' };
@@ -1628,9 +1693,12 @@ const CENTER_EMOJI = ['💃','🕺','🎮','🎲','🔥','🐸','🤖','👾'];
 async function switchDomain(dom){
   if(dom === domain) return;
   itemsStore[domain] = games; handleStore[domain] = myHandle; balanceStore[domain] = coinBalance;
+  collectionsStore[domain] = collections;
   domain = dom;
-  games = itemsStore[domain]; myHandle = handleStore[domain]; coinBalance = balanceStore[domain];
-  searchQuery = ''; statusFilter = 'all'; currentView = 'me';
+  games = itemsStore[domain]; myHandle = handleStore[domain];
+  collections = collectionsStore[domain]; coinBalance = balanceStore[domain];
+  collections = collectionsStore[domain];
+  searchQuery = ''; statusFilter = 'all'; currentView = 'me'; boardTab = 'reviews';
   document.body.dataset.domain = domain;
   render();
   loadFriendsActivity();
@@ -1944,8 +2012,13 @@ function render(){
         <button class="btn ghost" id="publishBtn">${myHandle?'Обновить в витрине':'Опубликовать профиль'}</button>
         <button class="btn" id="addBtn">+ Новый обзор</button>
       </div>
-      <div id="statusChips">${statusChipsHTML(games, statusFilter)}</div>
-      <div id="boardArea"></div>`;
+      <div class="board-tabs">
+        <button class="btab ${boardTab==='reviews'?'active':''}" data-tab="reviews">Обзоры</button>
+        <button class="btab ${boardTab==='collections'?'active':''}" data-tab="collections">Коллекции <span class="btab-cnt">${collections.length||''}</span></button>
+      </div>
+      <div id="statusChips">${boardTab==='reviews'?statusChipsHTML(games, statusFilter):''}</div>
+      <div id="boardArea"></div>
+      ${boardTab==='collections'?`<button class="btn ghost" id="newCollBtn" style="margin-top:14px;width:100%">+ Новая коллекция</button>`:''}`;
   } else {
     html += `
       <div class="bar"><h2>Витрина профилей</h2>
@@ -1973,8 +2046,13 @@ function wireMain(){
   document.querySelectorAll('.nav button').forEach(b=>{
     b.addEventListener('click', ()=>{ currentView = b.dataset.view; render(); });
   });
+  document.querySelectorAll('.btab').forEach(b=>{
+    b.addEventListener('click', ()=>{ boardTab = b.dataset.tab; render(); });
+  });
   const addBtn = document.getElementById('addBtn');
   if(addBtn) addBtn.addEventListener('click', ()=>openForm());
+  const newCollBtn = document.getElementById('newCollBtn');
+  if(newCollBtn) newCollBtn.addEventListener('click', ()=>openCollectionForm());
   const pubBtn = document.getElementById('publishBtn');
   if(pubBtn) pubBtn.addEventListener('click', openPublish);
   const shopBtn = document.getElementById('shopBtn');
@@ -2089,8 +2167,12 @@ function wireCards(el, list, readonly, onBack){
 // Моя доска
 function renderBoard(){
   const el = document.getElementById('boardArea');
-  fillBoard(el, games, { readonly:false, query:searchQuery, status:statusFilter });
-  if(myHandle) loadBoardReactions(el, null);
+  if(boardTab === 'collections'){
+    renderCollections(el, collections, false);
+  } else {
+    fillBoard(el, games, { readonly:false, query:searchQuery, status:statusFilter });
+    if(myHandle) loadBoardReactions(el, null);
+  }
 }
 
 /* ---------------- Community views ---------------- */
@@ -2156,8 +2238,10 @@ async function openSharedProfileFromURL(){
 
 function openFriendProfile(p, init){
   const list = p.items || [];
+  const fColls = p.collections || [];
   let fq = (init && init.fq) || '';
   let fSt = (init && init.fSt) || 'all';
+  let fTab = (init && init.fTab) || 'reviews';
   showModal(`
     <div class="p-top" style="margin-bottom:4px">
       <div class="avatar${frameClass(p.cosmetics)}" style="cursor:default">${esc(p.avatar||'🎮')}</div>
@@ -2169,20 +2253,63 @@ function openFriendProfile(p, init){
       </div>
     </div>
     <div class="stats fmodal-stats">${statsHTML(list, (typeof p.balance==='number'?p.balance:COIN_START), false)}</div>
-    ${list.length ? `
-      <input type="text" class="search" id="friendSearch" placeholder="Поиск по названию или жанру…" style="max-width:none;width:100%;margin:14px 0 12px" value="${esc(fq)}" autocomplete="off">
-      <div id="friendChips">${statusChipsHTML(list, fSt)}</div>` : ''}
+    <div class="board-tabs" id="fTabs">
+      <button class="btab ${fTab==='reviews'?'active':''}" data-tab="reviews">Обзоры</button>
+      <button class="btab ${fTab==='collections'?'active':''}" data-tab="collections">Коллекции <span class="btab-cnt">${fColls.length||''}</span></button>
+    </div>
+    <div id="fTabReviews" ${fTab!=='reviews'?'style="display:none"':''}>
+      ${list.length ? `
+        <input type="text" class="search" id="friendSearch" placeholder="Поиск по названию или жанру…" style="max-width:none;width:100%;margin:8px 0 12px" value="${esc(fq)}" autocomplete="off">
+        <div id="friendChips">${statusChipsHTML(list, fSt)}</div>` : ''}
+    </div>
     <div id="friendBoard"></div>
   `, ('fp-modal'+bgClass(p.cosmetics)));
+
   const boardEl = document.getElementById('friendBoard');
-  list.__owner = p.handle;   // нужен для реакций в openDetail
+  list.__owner = p.handle;
+
   function drawFB(){
-    fillBoard(boardEl, list, {
-      readonly:true, query:fq, status:fSt,
-      onBack: ()=>openFriendProfile(p, {fq, fSt})
-    });
-    loadBoardReactions(boardEl, p.handle);
+    if(fTab === 'reviews'){
+      fillBoard(boardEl, list, {
+        readonly:true, query:fq, status:fSt,
+        onBack: ()=>openFriendProfile(p, {fq, fSt, fTab})
+      });
+      loadBoardReactions(boardEl, p.handle);
+    } else {
+      // Коллекции друга — нужно games = items друга для collageHTML
+      const saved = games;
+      games = list;
+      renderCollections(boardEl, fColls, true);
+      // Реакции на коллекции
+      loadBoardReactions(boardEl, p.handle);
+      // Открытие деталей коллекции с items друга
+      boardEl.querySelectorAll('.coll-card').forEach(card=>{
+        card.replaceWith(card.cloneNode(true)); // убираем старые листенеры
+      });
+      boardEl.querySelectorAll('.coll-card').forEach(card=>{
+        card.addEventListener('click', ()=>{
+          const coll = fColls.find(c=>c.id===card.dataset.collId);
+          if(!coll) return;
+          const gSaved = games; games = list;
+          openCollectionDetail(coll, true, p.handle);
+          games = gSaved;
+        });
+      });
+      games = saved;
+    }
   }
+
+  const tabsEl = document.getElementById('fTabs');
+  tabsEl.querySelectorAll('.btab').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      fTab = b.dataset.tab;
+      tabsEl.querySelectorAll('.btab').forEach(x=>x.classList.toggle('active', x.dataset.tab===fTab));
+      const rv = document.getElementById('fTabReviews');
+      if(rv) rv.style.display = fTab==='reviews' ? '' : 'none';
+      drawFB();
+    });
+  });
+
   const fs = document.getElementById('friendSearch');
   if(fs) fs.addEventListener('input', ()=>{ fq = fs.value; drawFB(); });
   const fchips = document.getElementById('friendChips');
@@ -3150,6 +3277,165 @@ async function renderReactions(container, owner, itemId, isOwn){
   }
 }
 
+/* ================================================================
+   КОЛЛЕКЦИИ (мульти-обзоры)
+   ================================================================ */
+
+// Коллаж из обложек (до 4 штук) → HTML
+function collageHTML(coll, size){
+  const sz = size || 52;
+  const items = (coll.itemIds||[])
+    .map(id=>games.find(g=>g.id===id)).filter(Boolean);
+  const covers = items.map(g=>g.cover).filter(Boolean).slice(0,4);
+  if(!covers.length){
+    return `<div class="coll-nocover" style="width:${sz}px;height:${sz}px">${domain==='movies'?'🎬':'🎮'}</div>`;
+  }
+  if(covers.length===1){
+    return `<div class="coll-cover1" style="width:${sz}px;height:${sz}px"><img src="${esc(covers[0])}" alt=""></div>`;
+  }
+  const cells = covers.map(c=>`<img src="${esc(c)}" alt="" onerror="this.style.display='none'">`).join('');
+  return `<div class="coll-collage coll-n${covers.length}" style="width:${sz}px;height:${sz}px">${cells}</div>`;
+}
+
+// Средняя оценка коллекции
+function collAvg(coll){
+  const scored = (coll.itemIds||[])
+    .map(id=>games.find(g=>g.id===id)).filter(g=>g&&completedStatuses().includes(g.status));
+  if(!scored.length) return null;
+  return scored.reduce((s,g)=>s+g.score,0)/scored.length;
+}
+
+// HTML одной карточки коллекции
+function collCardHTML(coll, readonly){
+  const avg = collAvg(coll);
+  const t = avg!==null ? tierOf(avg) : null;
+  const cnt = (coll.itemIds||[]).length;
+  return `<div class="coll-card" data-coll-id="${esc(coll.id)}" data-ro="${readonly?1:0}">
+    ${collageHTML(coll, 80)}
+    <div class="coll-card-body">
+      <div class="coll-card-title">${esc(coll.title)}</div>
+      <div class="coll-card-meta">
+        ${t?`<span class="coll-score" style="color:${t.color}">${avg.toFixed(1)}</span>`:''}
+        <span class="coll-cnt">${cnt} ${domain==='movies'?'фильм':'игр'}${cnt===1?'а':cnt<5?'ы':''}</span>
+      </div>
+      <div class="card-rx" data-item-id="coll:${esc(coll.id)}"></div>
+    </div>
+  </div>`;
+}
+
+// Рендерит сетку коллекций в el
+function renderCollections(el, colls, readonly){
+  if(!el) return;
+  if(!colls.length){
+    el.innerHTML = `<div class="empty-all" style="padding:28px 20px"><b>Пока нет коллекций</b>${readonly?'У этого пользователя нет коллекций.':'Собери серию или подборку — нажми «+ Новая коллекция».'}</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="coll-grid">${colls.map(c=>collCardHTML(c,readonly)).join('')}</div>`;
+  el.querySelectorAll('.coll-card').forEach(card=>{
+    card.addEventListener('click', ()=>{
+      const coll = colls.find(c=>c.id===card.dataset.collId);
+      if(coll) openCollectionDetail(coll, readonly);
+    });
+  });
+}
+
+// Детальный просмотр коллекции
+function openCollectionDetail(coll, readonly, owner){
+  const avg = collAvg(coll);
+  const t = avg!==null ? tierOf(avg) : null;
+  const items = (coll.itemIds||[]).map(id=>games.find(g=>g.id===id)).filter(Boolean);
+  const iconsHTML = items.map(g=>`
+    <div class="coll-detail-item" data-game-id="${g.id}">
+      ${g.cover?`<img src="${esc(g.cover)}" alt="" onerror="this.style.display='none'">`:`<div class="coll-nocover" style="width:48px;height:48px;font-size:22px">${domain==='movies'?'🎬':'🎮'}</div>`}
+      <div class="coll-detail-name">${esc(g.title)}</div>
+      <div class="coll-detail-score" style="color:${tierOf(g.score).color}">${g.score.toFixed(1)}</div>
+    </div>`).join('');
+  showModal(`
+    <button class="close" onclick="__close()">×</button>
+    <div class="coll-detail-head">
+      ${collageHTML(coll, 80)}
+      <div>
+        <h3 style="margin-bottom:4px">${esc(coll.title)}</h3>
+        <div class="rd-meta">${items.length} ${domain==='movies'?'фильм':'игр'}${items.length===1?'а':items.length<5?'ы':''} ${t?`· <span style="color:${t.color}">avg ${avg.toFixed(1)}</span>`:''}</div>
+      </div>
+    </div>
+    <div class="coll-detail-items">${iconsHTML}</div>
+    ${coll.review?`<div class="rd-body" style="margin-top:14px">${esc(coll.review)}</div>`:`<div class="rd-body empty" style="margin-top:14px">Общий обзор не написан.</div>`}
+    <div class="rx-container" id="rxContainerColl"></div>
+    ${!readonly?`<div class="rd-actions">
+      <button class="btn ghost sm" id="editColl">Редактировать</button>
+      <button class="btn ghost sm" id="delColl" style="color:var(--s)">Удалить</button>
+    </div>`:''}
+  `);
+
+  // Реакции на коллекцию
+  const rxEl = document.getElementById('rxContainerColl');
+  if(rxEl) renderReactions(rxEl, owner || (readonly?null:myHandle), 'coll:'+coll.id, !readonly&&!owner);
+
+  // Клик по игре — открывает её обзор
+  modal.querySelectorAll('.coll-detail-item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const g = games.find(x=>x.id===el.dataset.gameId);
+      if(g) openDetail(g.id, games, readonly, ()=>openCollectionDetail(coll, readonly, owner), '← Назад к коллекции');
+    });
+  });
+
+  if(readonly) return;
+  document.getElementById('editColl').addEventListener('click', ()=>openCollectionForm(coll));
+  armButton(document.getElementById('delColl'), 'Точно удалить?', async ()=>{
+    collections = collections.filter(c=>c.id!==coll.id);
+    await saveCollections(domain, collections);
+    closeModal(); render();
+  });
+}
+
+// Форма создания/редактирования коллекции
+function openCollectionForm(editColl){
+  const isEdit = !!editColl;
+  const selIds = new Set(isEdit ? (editColl.itemIds||[]) : []);
+  // Список всех своих игр для выбора
+  const opts = games.map(g=>`
+    <label class="coll-pick-item ${selIds.has(g.id)?'sel':''}">
+      <input type="checkbox" value="${g.id}" ${selIds.has(g.id)?'checked':''}>
+      ${g.cover?`<img src="${esc(g.cover)}" alt="" style="width:32px;height:32px;object-fit:cover;border-radius:5px;flex-shrink:0">`:`<span style="font-size:20px;flex-shrink:0">${domain==='movies'?'🎬':'🎮'}</span>`}
+      <span class="coll-pick-title">${esc(g.title)}</span>
+      <span class="coll-pick-score" style="color:${tierOf(g.score).color}">${g.score.toFixed(1)}</span>
+    </label>`).join('');
+  showModal(`
+    <button class="close" onclick="__close()">×</button>
+    <h3>${isEdit?'Редактировать коллекцию':'Новая коллекция'}</h3>
+    <label>Название коллекции *</label>
+    <input type="text" id="collTitle" value="${isEdit?esc(editColl.title):''}" placeholder="напр. Ведьмак — вся серия" maxlength="80">
+    <label>Общий обзор на серию</label>
+    <textarea id="collReview" placeholder="Впечатления от серии в целом…" style="min-height:90px">${isEdit?esc(editColl.review||''):''}</textarea>
+    <label>Выбери ${domain==='movies'?'фильмы':'игры'} (${games.length})</label>
+    <div class="coll-pick-list" id="collPickList">${opts}</div>
+    <div class="err" id="collErr"></div>
+    <div class="form-actions">
+      <button class="btn ghost" onclick="__close()">Отмена</button>
+      <button class="btn" id="collSave" style="flex:1">${isEdit?'Сохранить':'Создать'}</button>
+    </div>
+  `);
+  // Подсветка выбранных
+  modal.querySelectorAll('.coll-pick-item input').forEach(cb=>{
+    cb.addEventListener('change', ()=>cb.closest('.coll-pick-item').classList.toggle('sel', cb.checked));
+  });
+  document.getElementById('collSave').addEventListener('click', async ()=>{
+    const title = document.getElementById('collTitle').value.trim();
+    const review = document.getElementById('collReview').value.trim();
+    const err = document.getElementById('collErr');
+    const itemIds = [...modal.querySelectorAll('.coll-pick-item input:checked')].map(cb=>cb.value);
+    if(!title){ err.textContent = 'Впиши название.'; return; }
+    if(itemIds.length < 2){ err.textContent = 'Выбери хотя бы 2 обзора.'; return; }
+    const coll = { id: isEdit?editColl.id:('c'+Date.now()), title, review, itemIds, created: isEdit?editColl.created:Date.now() };
+    if(isEdit){ collections = collections.map(c=>c.id===coll.id?coll:c); }
+    else { collections = [coll, ...collections]; }
+    await saveCollections(domain, collections);
+    closeModal(); boardTab = 'collections'; render();
+  });
+}
+
+/* ================================================================ */
 function openDetail(id, list, readonly, onBack, backLabel){
   list = list || games;
   const g = list.find(x=>x.id===id); if(!g) return;
@@ -3210,6 +3496,8 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   if(!Array.isArray(profile.owned)) profile.owned = [];
   itemsStore.games  = await loadItems('games');
   itemsStore.movies = await loadItems('movies');
+  collectionsStore.games  = await loadCollections('games');
+  collectionsStore.movies = await loadCollections('movies');
   handleStore.games  = await loadHandleFor('games');
   handleStore.movies = await loadHandleFor('movies');
   games = itemsStore[domain];
