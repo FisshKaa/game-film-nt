@@ -703,6 +703,19 @@
   .rd-body{font-size:15.5px;line-height:1.7;white-space:pre-wrap;color:#dcdaea}
   .rd-body.empty{color:var(--muted2);font-style:italic}
   .rd-actions{display:flex;gap:10px;margin-top:22px;border-top:1px solid var(--line);padding-top:18px}
+  /* Кнопка ставки на рулетку на карточке */
+  .card-rl-bet{position:absolute;bottom:6px;right:6px;background:rgba(0,0,0,.6);border:1px solid var(--line);
+    border-radius:7px;width:26px;height:26px;font-size:13px;cursor:pointer;
+    display:grid;place-items:center;opacity:0;transition:opacity .15s;z-index:4}
+  .card:hover .card-rl-bet{opacity:1}
+  .card-rl-bet:hover{border-color:var(--accent-dim);background:rgba(0,0,0,.8)}
+  /* Шансы рулетки */
+  .rl-odds{margin-top:10px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 14px}
+  .rl-odds-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px}
+  .rl-odd-row{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12.5px}
+  .rl-odd-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .rl-odd-pct{font-family:'Space Mono',monospace;font-weight:700;color:var(--accent);font-size:12px;flex-shrink:0}
+  .rl-odd-sum{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted2);flex-shrink:0}
 
   /* Вкладки Обзоры / Коллекции */
   .board-tabs{display:flex;gap:4px;margin:10px 0 12px;background:var(--ink2);border:1px solid var(--line);
@@ -2222,6 +2235,7 @@ function wireMain(){
 function fillBoard(el, list, opts){
   opts = opts || {};
   const readonly = !!opts.readonly;
+  const fp = opts.friendProfile || null;
   const status = opts.status || 'all';
   const q = (opts.query||'').trim().toLowerCase();
   if(!el) return;
@@ -2239,7 +2253,7 @@ function fillBoard(el, list, opts){
       return;
     }
     el.innerHTML = `<div class="search-count">Показано: ${filtered.length}</div>` + tierBoardHTML(filtered, readonly, true);
-    wireCards(el, list, readonly, opts.onBack);
+    wireCards(el, list, readonly, opts.onBack, fp);
     return;
   }
 
@@ -2275,15 +2289,28 @@ function fillBoard(el, list, opts){
   }
 
   el.innerHTML = html;
-  wireCards(el, list, readonly, opts.onBack);
+  wireCards(el, list, readonly, opts.onBack, fp);
   const rb = el.querySelector('#rouletteBtn');
   if(rb) rb.addEventListener('click', openRoulette);
 }
 
-function wireCards(el, list, readonly, onBack){
+function wireCards(el, list, readonly, onBack, friendProfile){
   el.querySelectorAll('.card').forEach(c=>{
     c.addEventListener('click', ()=>openDetail(c.dataset.id, list, readonly, onBack));
   });
+  // Кнопка ставки на рулетку — только на чужих карточках бэклога
+  if(readonly && friendProfile && myHandle && myHandle !== friendProfile.handle){
+    el.querySelectorAll('.card').forEach(c=>{
+      const g = list.find(x=>x.id===c.dataset.id);
+      if(!g || !backlogStatuses().includes(g.status)) return;
+      const btn = document.createElement('button');
+      btn.className = 'card-rl-bet';
+      btn.title = 'Поставить на рулетку';
+      btn.textContent = '🎡';
+      btn.addEventListener('click', e=>{ e.stopPropagation(); openRouletteBetModal(friendProfile, g); });
+      c.appendChild(btn);
+    });
+  }
 }
 
 // Моя доска
@@ -2394,7 +2421,8 @@ function openFriendProfile(p, init){
     if(fTab === 'reviews'){
       fillBoard(boardEl, list, {
         readonly:true, query:fq, status:fSt,
-        onBack: ()=>openFriendProfile(p, {fq, fSt, fTab})
+        onBack: ()=>openFriendProfile(p, {fq, fSt, fTab}),
+        friendProfile: p
       });
       loadBoardReactions(boardEl, p.handle);
     } else {
@@ -2686,6 +2714,89 @@ function stripCellHTML(g){
     : `<div class="strip-noimg">${ph}</div>`;
   return `<div class="strip-cell" style="border-color:${statusColor(g.status)}">${cov}<div class="strip-title">${esc(g.title)}</div></div>`;
 }
+/* ================================================================
+   СТАВКИ НА РУЛЕТКУ
+   ================================================================ */
+// Загружает ставки на рулетку определённого владельца (все pending)
+async function loadRouletteBets(owner){
+  try{
+    const { data } = await sb.from('roulette_bets')
+      .select('*').eq('domain', domain).eq('owner', owner).eq('status','pending');
+    return data || [];
+  }catch(e){ return []; }
+}
+// Сумма ставок на конкретный item
+function rouletteBetSum(bets, itemId){ return bets.filter(b=>b.item_id===itemId).reduce((s,b)=>s+b.amount,0); }
+// Вес игры = 1 + сумма_ставок / 10
+function rouletteWeight(bets, itemId){ return 1 + rouletteBetSum(bets, itemId)/10; }
+// Взвешенный случайный выбор победителя
+function weightedPick(pool, bets){
+  const weights = pool.map(g=>rouletteWeight(bets, g.id));
+  const total = weights.reduce((s,w)=>s+w, 0);
+  let r = Math.random() * total;
+  for(let i=0;i<pool.length;i++){ r -= weights[i]; if(r <= 0) return pool[i]; }
+  return pool[pool.length-1];
+}
+// Автоматически разрешает ставки после прокрутки
+async function resolveRouletteBets(owner, winnerId, pool){
+  try{
+    const { data: bets } = await sb.from('roulette_bets')
+      .select('*').eq('domain', domain).eq('owner', owner).eq('status','pending');
+    if(!bets || !bets.length) return;
+    const poolIds = new Set(pool.map(g=>g.id));
+    for(const b of bets){
+      if(!poolIds.has(b.item_id)){
+        // Игра не в пуле (убрали из бэклога) — возврат
+        await sb.from('roulette_bets').update({status:'refunded'}).eq('id', b.id);
+        await sb.from('public_profiles').select('balance').eq('id', domain+':'+b.bettor).maybeSingle()
+          .then(async({data:pr})=>{
+            const cur = pr && typeof pr.balance==='number' ? pr.balance : COIN_START;
+            await sb.from('public_profiles').update({balance: cur+b.amount}).eq('id', domain+':'+b.bettor);
+          });
+      } else if(b.item_id === winnerId){
+        // Выиграл — ×2
+        await sb.from('roulette_bets').update({status:'won'}).eq('id', b.id);
+        const {data:pr} = await sb.from('public_profiles').select('balance').eq('id', domain+':'+b.bettor).maybeSingle();
+        const cur = pr && typeof pr.balance==='number' ? pr.balance : COIN_START;
+        await sb.from('public_profiles').update({balance: cur+b.amount*2}).eq('id', domain+':'+b.bettor);
+      } else {
+        // Проиграл
+        await sb.from('roulette_bets').update({status:'lost'}).eq('id', b.id);
+      }
+    }
+  }catch(e){ console.error('resolveRouletteBets failed', e); }
+}
+// Модалка ставки на рулетку из профиля друга
+function openRouletteBetModal(p, item){
+  if(!myHandle){ alert('Опубликуй профиль, чтобы ставить.'); return; }
+  if(myHandle === p.handle){ alert('Нельзя ставить на свою рулетку.'); return; }
+  showModal(`
+    <button class="close" onclick="__close()">×</button>
+    <h3>🎡 Ставка на рулетку</h3>
+    <div class="rd-meta" style="margin-bottom:12px">Ставишь на то что «${esc(item.title)}» выпадет в рулетке у <b>${esc(p.name||p.handle)}</b></div>
+    <label>Сумма (у тебя ${coinBalance} 🟡)</label>
+    <input type="number" id="rbAmount" min="1" max="${coinBalance}" value="${Math.min(10,coinBalance)||1}">
+    <p class="comm-note" style="margin-top:8px">Твоя ставка увеличивает шанс выпадения этой игры. Если выпадет — ×2. Если нет — монеты сгорают. Если игру уберут из бэклога до прокрутки — деньги вернутся автоматически.</p>
+    <div class="err" id="rbErr"></div>
+    <button class="btn" id="rbSubmit" style="width:100%;margin-top:8px">Поставить</button>
+  `);
+  document.getElementById('rbSubmit').addEventListener('click', async()=>{
+    const amount = parseInt(document.getElementById('rbAmount').value, 10);
+    const err = document.getElementById('rbErr');
+    if(!amount || amount < 1){ err.textContent = 'Укажи сумму.'; return; }
+    if(amount > coinBalance){ err.textContent = 'Недостаточно монет.'; return; }
+    const id = `${domain}:${p.handle}:${item.id}:${myHandle}`;
+    await addCoins(-amount);
+    try{
+      await sb.from('roulette_bets').upsert({
+        id, domain, owner: p.handle, item_id: item.id, item_title: item.title,
+        bettor: myHandle, bettor_name: profile.name, amount, status:'pending'
+      });
+    }catch(e){ console.error('roulette bet failed', e); }
+    closeModal();
+  });
+}
+
 function openRoulette(){
   const backl = backlogStatuses();
   const backlog = games.filter(g=>backl.includes(g.status));
@@ -2756,6 +2867,7 @@ function openRoulette(){
         </div>`
     }
     <div class="rl-result" id="rlResult"></div>
+    <div id="rlOdds"></div>
     <div class="form-actions">
       <button class="btn" id="spinBtn" style="flex:1">Крутить</button>
     </div>
@@ -2766,6 +2878,7 @@ function openRoulette(){
   const stripTrack = document.getElementById('stripTrack');
   const spinBtn = document.getElementById('spinBtn');
   const resultEl = document.getElementById('rlResult');
+  const oddsEl = document.getElementById('rlOdds');
   const picksEl = document.getElementById('rlPicks');
   const secsInp = document.getElementById('spinSecs');
   const musicInp = document.getElementById('musicUrl');
@@ -2840,6 +2953,33 @@ function openRoulette(){
 
   const currentPool = ()=>games.filter(g=>enabled.has(g.status));
 
+  // Ставки на мою рулетку — загружаем один раз при открытии
+  let rlBets = [];
+  if(myHandle){
+    loadRouletteBets(myHandle).then(bets=>{
+      rlBets = bets;
+      renderRlOdds();
+      buildWheel();
+    });
+  }
+
+  function renderRlOdds(){
+    const pool = currentPool();
+    if(!pool.length || !rlBets.length){ oddsEl.innerHTML = ''; return; }
+    const weights = pool.map(g=>rouletteWeight(rlBets, g.id));
+    const total = weights.reduce((s,w)=>s+w, 0);
+    const rows = pool.map((g,i)=>{
+      const pct = (weights[i]/total*100).toFixed(1);
+      const sum = rouletteBetSum(rlBets, g.id);
+      return `<div class="rl-odd-row">
+        <span class="rl-odd-title">${esc(truncTitle(g.title,22))}</span>
+        <span class="rl-odd-pct">${pct}%</span>
+        ${sum?`<span class="rl-odd-sum">${sum}🟡</span>`:''}
+      </div>`;
+    }).sort((a,b)=>parseFloat(b.match(/>([\d.]+)%/)[1])-parseFloat(a.match(/>([\d.]+)%/)[1])).join('');
+    oddsEl.innerHTML = `<div class="rl-odds"><div class="rl-odds-title">Шансы выпадения</div>${rows}</div>`;
+  }
+
   function buildWheel(){
     const pool = currentPool();
     if(mode==='wheel'){
@@ -2899,6 +3039,7 @@ function openRoulette(){
       ch.classList.toggle('active', enabled.has(s));
       resultEl.innerHTML = '';
       buildWheel();
+      renderRlOdds();
     });
   });
 
@@ -2914,8 +3055,8 @@ function openRoulette(){
     secsInp.value = secs;
 
     const N = pool.length;
-    const winIdx = Math.floor(Math.random()*N);
-    const winner = pool[winIdx];
+    const winner = weightedPick(pool, rlBets);
+    const winIdx = pool.indexOf(winner);
 
     // Для барабана заранее считаем целевой угол
     if(mode==='wheel'){
@@ -2962,6 +3103,8 @@ function openRoulette(){
       const fbtn = document.getElementById('rlFriends');
       if(fbtn) fbtn.addEventListener('click', ()=>showFriendReviews(fbtn, winner.title));
       launchConfetti();   // конфетти теперь всегда
+      // Автоматически разрешаем ставки на рулетку
+      if(myHandle) resolveRouletteBets(myHandle, winner.id, pool);
     };
 
     // Барабан и лента завершаются по transitionend; слот сам вызовет finish() после последней колонки
