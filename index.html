@@ -716,6 +716,12 @@
   .rl-odd-title{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .rl-odd-pct{font-family:'Space Mono',monospace;font-weight:700;color:var(--accent);font-size:12px;flex-shrink:0}
   .rl-odd-sum{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted2);flex-shrink:0}
+  .rl-odd-item{border-bottom:1px solid var(--line);padding-bottom:5px;margin-bottom:5px}
+  .rl-odd-item:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+  .rl-odd-bets{display:flex;flex-wrap:wrap;gap:5px;margin-top:3px;padding-left:4px}
+  .rl-odd-bettor{font-size:11px;color:var(--muted);background:var(--surface2);
+    border-radius:20px;padding:2px 8px;border:1px solid var(--line)}
+  .rl-odd-bettor b{color:var(--accent);font-family:'Space Mono',monospace;font-size:10px}
 
   /* Вкладки Обзоры / Коллекции */
   .board-tabs{display:flex;gap:4px;margin:10px 0 12px;background:var(--ink2);border:1px solid var(--line);
@@ -2965,18 +2971,28 @@ function openRoulette(){
 
   function renderRlOdds(){
     const pool = currentPool();
-    if(!pool.length || !rlBets.length){ oddsEl.innerHTML = ''; return; }
+    if(!pool.length){ oddsEl.innerHTML = ''; return; }
     const weights = pool.map(g=>rouletteWeight(rlBets, g.id));
     const total = weights.reduce((s,w)=>s+w, 0);
+    // Группируем ставки по item_id
+    const betsByItem = {};
+    rlBets.forEach(b=>{ (betsByItem[b.item_id] = betsByItem[b.item_id]||[]).push(b); });
     const rows = pool.map((g,i)=>{
       const pct = (weights[i]/total*100).toFixed(1);
-      const sum = rouletteBetSum(rlBets, g.id);
-      return `<div class="rl-odd-row">
-        <span class="rl-odd-title">${esc(truncTitle(g.title,22))}</span>
-        <span class="rl-odd-pct">${pct}%</span>
-        ${sum?`<span class="rl-odd-sum">${sum}🟡</span>`:''}
-      </div>`;
-    }).sort((a,b)=>parseFloat(b.match(/>([\d.]+)%/)[1])-parseFloat(a.match(/>([\d.]+)%/)[1])).join('');
+      const bets = betsByItem[g.id] || [];
+      const sum = bets.reduce((s,b)=>s+b.amount, 0);
+      const betsList = bets.length ? `<div class="rl-odd-bets">${bets.map(b=>
+        `<span class="rl-odd-bettor">${esc(b.bettor_name||b.bettor)} <b>${b.amount}🟡</b></span>`
+      ).join('')}</div>` : '';
+      return { pct: parseFloat(pct), html: `<div class="rl-odd-item">
+        <div class="rl-odd-row">
+          <span class="rl-odd-title">${esc(truncTitle(g.title,24))}</span>
+          <span class="rl-odd-pct">${pct}%</span>
+          ${sum ? `<span class="rl-odd-sum">${sum}🟡</span>` : ''}
+        </div>
+        ${betsList}
+      </div>` };
+    }).sort((a,b)=>b.pct-a.pct).map(x=>x.html).join('');
     oddsEl.innerHTML = `<div class="rl-odds"><div class="rl-odds-title">Шансы выпадения</div>${rows}</div>`;
   }
 
