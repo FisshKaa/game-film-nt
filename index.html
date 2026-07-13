@@ -710,17 +710,20 @@
   .coll-card-meta{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
   .coll-score{font-family:'Space Mono',monospace;font-weight:700;font-size:14px}
   .coll-cnt{font-size:11px}
-  /* Коллаж обложек */
-  .coll-cover1 img{width:100%;height:100%;object-fit:cover;display:block;border-radius:0}
-  .coll-collage{display:grid;gap:2px}
+  /* Коллаж обложек — растягивается на всю ширину карточки */
+  .coll-cover1{width:100%;aspect-ratio:16/9;overflow:hidden;flex-shrink:0}
+  .coll-cover1 img{width:100%;height:100%;object-fit:cover;display:block}
+  .coll-collage{width:100%;aspect-ratio:16/9;display:grid;gap:2px;overflow:hidden;flex-shrink:0}
   .coll-n2{grid-template-columns:1fr 1fr}
   .coll-n3{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
   .coll-n3 img:first-child{grid-row:1/3}
   .coll-n4{grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr}
   .coll-collage img{width:100%;height:100%;object-fit:cover;display:block}
-  .coll-nocover{background:var(--ink2);border-radius:0;display:grid;place-items:center;font-size:28px}
+  .coll-nocover{width:100%;aspect-ratio:16/9;background:var(--ink2);display:grid;place-items:center;font-size:36px;flex-shrink:0}
   /* Детальный просмотр */
   .coll-detail-head{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px}
+  .coll-detail-collage,.coll-detail-collage.coll-cover1,.coll-detail-collage.coll-collage,
+  .coll-detail-collage.coll-nocover{width:80px!important;height:80px!important;aspect-ratio:unset;flex-shrink:0;border-radius:10px;overflow:hidden}
   .coll-detail-items{display:flex;gap:10px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-top:4px}
   .coll-detail-item{display:flex;flex-direction:column;align-items:center;gap:4px;cursor:pointer;
     width:70px;text-align:center;transition:transform .15s}
@@ -3281,20 +3284,21 @@ async function renderReactions(container, owner, itemId, isOwn){
    КОЛЛЕКЦИИ (мульти-обзоры)
    ================================================================ */
 
-// Коллаж из обложек (до 4 штук) → HTML
 function collageHTML(coll, size){
-  const sz = size || 52;
   const items = (coll.itemIds||[])
     .map(id=>games.find(g=>g.id===id)).filter(Boolean);
   const covers = items.map(g=>g.cover).filter(Boolean).slice(0,4);
+  // size используется только для деталей (маленький превью), если передан — inline-стиль
+  const szStyle = size ? `style="width:${size}px;height:${size}px;flex-shrink:0"` : '';
+  const szClass = size ? 'coll-detail-collage' : '';
   if(!covers.length){
-    return `<div class="coll-nocover" style="width:${sz}px;height:${sz}px">${domain==='movies'?'🎬':'🎮'}</div>`;
+    return `<div class="coll-nocover ${szClass}" ${szStyle}>${domain==='movies'?'🎬':'🎮'}</div>`;
   }
   if(covers.length===1){
-    return `<div class="coll-cover1" style="width:${sz}px;height:${sz}px"><img src="${esc(covers[0])}" alt=""></div>`;
+    return `<div class="coll-cover1 ${szClass}" ${szStyle}><img src="${esc(covers[0])}" alt=""></div>`;
   }
   const cells = covers.map(c=>`<img src="${esc(c)}" alt="" onerror="this.style.display='none'">`).join('');
-  return `<div class="coll-collage coll-n${covers.length}" style="width:${sz}px;height:${sz}px">${cells}</div>`;
+  return `<div class="coll-collage coll-n${covers.length} ${szClass}" ${szStyle}>${cells}</div>`;
 }
 
 // Средняя оценка коллекции
