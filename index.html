@@ -3097,11 +3097,17 @@ function openRoulette(){
     const winner = weightedPick(pool, rlBets);
     const winIdx = pool.indexOf(winner);
 
-    // Для барабана заранее считаем целевой угол
+    // Для барабана заранее считаем целевой угол по взвешенным сегментам
     if(mode==='wheel'){
-      const seg = 360 / N;
-      const center = winIdx*seg + seg/2;
-      const jitter = (Math.random()-0.5) * seg * 0.7;
+      const weights = pool.map(g=>rouletteWeight(rlBets, g.id));
+      const totalW = weights.reduce((s,w)=>s+w, 0);
+      const angles = weights.map(w=>w/totalW*360);
+      // Начальный угол сегмента победителя
+      let startAngle = 0;
+      for(let i=0;i<winIdx;i++) startAngle += angles[i];
+      const segAngle = angles[winIdx];
+      const center = startAngle + segAngle/2;
+      const jitter = (Math.random()-0.5) * segAngle * 0.6;
       const targetMod = (((-(center + jitter)) % 360) + 360) % 360;
       const curMod = ((rotation % 360) + 360) % 360;
       const turns = 6;
