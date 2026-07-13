@@ -2885,6 +2885,23 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   musicUrl = await loadMusicUrl();
   rlVolume = await loadRlVolume();
   const cc = await loadCenterCfg(); if(cc) centerCfg = cc;
+
+  // Проверка сезона косметики: если сезон в базе отличается от локального — полный сброс owned и cosmetics
+  try{
+    const { data: cfg } = await sb.from('app_config').select('value').eq('key','cosmetics_season').maybeSingle();
+    const serverSeason = cfg ? cfg.value : '1';
+    const localSeason = localStorage.getItem('cosmetics_season') || '0';
+    if(serverSeason !== localSeason){
+      profile.owned = [];
+      profile.cosmetics = {frame:null,accent:null,title:null,background:null,nameFx:null,badge:null,roulette:null};
+      await saveProfile(profile);
+      localStorage.setItem('cosmetics_season', serverSeason);
+      if(myHandle){
+        try{ await sb.from('public_profiles').update({cosmetics:null}).eq('id', domain+':'+myHandle); }catch(e){}
+      }
+    }
+  }catch(e){ /* база недоступна — пропускаем */ }
+
   document.body.dataset.domain = domain;
   // Если это устройство уже привязано (сохранён PIN) — подтягиваем актуальные данные из облака,
   // чтобы профиль совпадал с тем, что видно на других устройствах/браузерах.
