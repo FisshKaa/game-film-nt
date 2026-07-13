@@ -2041,55 +2041,76 @@ function slotCellHTML(g){
     : `<div class="slot-noimg">${ph}</div><div class="slot-cell-title">${esc(g.title)}</div>`;
   return `<div class="slot-cell" style="border-color:${statusColor(g.status)}">${inner}</div>`;
 }
-// Три колонки: 0→вниз, 1→вверх, 2→вниз. Стоп разнобоем (0 → 1 → 2), все фиксируются на победителе.
+// Три колонки: 0→вниз, 1→вверх, 2→вниз. Крутится spinTime секунд, потом поочерёдный стоп за 5 сек.
 function beginSlotSpin(pool, winner, secs, done){
   const CELL_H = 76, GAP = 6, STRIDE = CELL_H + GAP;
-  const VISIBLE = 3; // видимых ячеек в барабане
   const dirs = ['down','up','down'];
-  // Дополнительная задержка каждого барабана перед остановкой (в секундах)
-  const stopDelay = [0, 0.8, 1.6];
-  let settled = 0;
+  // Фаза 1: бесконечное вращение через CSS animation на каждом треке
+  // Фаза 2: через spinTime → плавный доезд до победителя по очереди
+  const spinTime = Math.max(1, secs - 5);   // время свободного вращения
+  const stopDelay = [0, 1.5, 3.0];          // задержка начала торможения каждого барабана (сумма ≤ 5с)
+  const stopDur = 1.8;                       // длительность торможения одного барабана
 
+  const N = pool.length;
+  const total = 60;
+  const winCell = 40;
+
+  // Строим треки и запускаем бесконечное вращение через быстрый JS-loop
+  const tracks = [];
   dirs.forEach((dir, i)=>{
     const reel = document.getElementById('slotR'+i);
     const tr = reel ? reel.querySelector('.slot-track') : null;
-    if(!tr) return;
+    if(!tr){ tracks.push(null); return; }
 
-    // Строим ленту: мусор + победитель точно в середине (winCell) + мусор
-    const N = pool.length;
-    const total = 60;
-    const winCell = 40; // победитель 40-й ячейкой (≈ глубоко внизу)
+    // Строим ленту: много случайных + победитель на winCell
     let items = '';
     for(let k=0;k<total;k++) items += slotCellHTML(k===winCell ? winner : pool[Math.floor(Math.random()*N)]);
-
-    // Сначала сброс без анимации — стартовая позиция зависит от направления
     tr.style.transition = 'none';
     tr.innerHTML = items;
-    // Победитель должен стоять в центральной строке (индекс 1 из 3)
-    // finalTy: translateY чтобы ячейка winCell оказалась в средней строке viewport
-    const finalTy = -(winCell * STRIDE - STRIDE); // центральная строка = смещение на STRIDE от верха
-    // Стартовая позиция: отматываем назад на spinRows ячеек в нужную сторону
-    const spinRows = 20 + Math.floor(Math.random()*8);
-    const startTy = dir==='down'
-      ? finalTy - spinRows * STRIDE   // вниз: стартуем выше, едем вниз
-      : finalTy + spinRows * STRIDE;  // вверх: стартуем ниже, едем вверх
-    tr.style.transform = `translateY(${startTy}px)`;
-    // Форсируем reflow
     void tr.getBoundingClientRect();
 
-    const dur = secs + stopDelay[i];
-    // cubic-bezier: быстро в начале, очень медленно останавливается (резинка)
-    requestAnimationFrame(()=>{
-      tr.style.transition = `transform ${dur}s cubic-bezier(0.08, 0.82, 0.12, 1)`;
-      tr.style.transform = `translateY(${finalTy}px)`;
-    });
+    // Стартуем с позиции «начало» и гоним в нужную сторону через requestAnimationFrame
+    // Победитель пока не нужен — просто мотаем ленту туда-сюда
+    // Реализуем как быстрое промежуточное позиционирование без CSS transition
+    const speed = (dir==='down' ? 1 : -1) * 3; // пикселей за кадр (~180px/s при 60fps)
+    let pos = 0;
+    const maxPos = (total - 3) * STRIDE; // граница прокрутки
+    let rafId = null;
+    let stopped = false;
 
-    // Последний барабан вызывает done()
-    if(i === 2){
-      const h = ()=>{ tr.removeEventListener('transitionend', h); done(); };
-      tr.addEventListener('transitionend', h);
+    function loop(){
+      if(stopped) return;
+      pos += speed;
+      if(pos < 0) pos = maxPos;
+      if(pos > maxPos) pos = 0;
+      tr.style.transform = `translateY(${-pos}px)`;
+      rafId = requestAnimationFrame(loop);
     }
+    rafId = requestAnimationFrame(loop);
+
+    // Функция остановки: плавно доезжает до победителя
+    const stop = (delay)=>setTimeout(()=>{
+      stopped = true;
+      if(rafId) cancelAnimationFrame(rafId);
+      // Считаем куда ехать: победитель на winCell, центральная строка
+      const finalTy = -(winCell * STRIDE - STRIDE);
+      tr.style.transition = 'none';
+      void tr.getBoundingClientRect();
+      requestAnimationFrame(()=>{
+        tr.style.transition = `transform ${stopDur}s cubic-bezier(0.08, 0.82, 0.12, 1)`;
+        tr.style.transform = `translateY(${finalTy}px)`;
+      });
+      if(i === 2){
+        const h = ()=>{ tr.removeEventListener('transitionend', h); done(); };
+        tr.addEventListener('transitionend', h);
+      }
+    }, (spinTime + stopDelay[i]) * 1000);
+
+    tracks.push({ tr, stop });
   });
+
+  // Запускаем остановки по очереди
+  tracks.forEach((t, i)=>{ if(t) t.stop(0); });
 }
 // Ячейка «ленты» (CS-кейс / слот)
 function stripCellHTML(g){
