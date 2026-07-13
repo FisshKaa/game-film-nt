@@ -2748,6 +2748,25 @@ function weightedPick(pool, bets){
   return pool[pool.length-1];
 }
 // Автоматически разрешает ставки после прокрутки
+// Возврат ставок на конкретную игру (когда она ушла из бэклога до прокрутки)
+async function refundRouletteBets(owner, itemId){
+  try{
+    const { data: bets } = await sb.from('roulette_bets')
+      .select('*').eq('domain', domain).eq('owner', owner)
+      .eq('item_id', itemId).eq('status','pending');
+    if(!bets || !bets.length) return;
+    for(const b of bets){
+      await sb.from('roulette_bets').update({status:'refunded'}).eq('id', b.id);
+      const {data:pr} = await sb.from('public_profiles').select('balance')
+        .eq('id', domain+':'+b.bettor).maybeSingle();
+      const cur = pr && typeof pr.balance==='number' ? pr.balance : COIN_START;
+      await sb.from('public_profiles').update({balance: cur+b.amount})
+        .eq('id', domain+':'+b.bettor);
+    }
+    console.log(`refunded ${bets.length} roulette bets for item ${itemId}`);
+  }catch(e){ console.error('refundRouletteBets failed', e); }
+}
+
 async function resolveRouletteBets(owner, winnerId, pool){
   try{
     const { data: bets } = await sb.from('roulette_bets')
@@ -3489,6 +3508,10 @@ async function submitForm(editId, getData){
       await addCoins(COIN_REVIEW_REWARD);
       await markReviewRewardClaimed();
     }
+  }
+  // Автовозврат ставок на рулетку если игра ушла из бэклога
+  if(editId && myHandle && !backlogStatuses().includes(item.status)){
+    refundRouletteBets(myHandle, item.id).catch(e=>console.error('refund failed', e));
   }
   await saveGames(games);
   closeModal(); render();
