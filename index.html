@@ -170,6 +170,8 @@
   .confetti-layer{position:fixed;inset:0;pointer-events:none;z-index:200;overflow:hidden}
   .confetti-piece{position:absolute;top:0;width:9px;height:14px;border-radius:2px;animation:confFall linear forwards}
   @keyframes confFall{0%{transform:translateY(-20px) rotate(0);opacity:1}100%{transform:translateY(105vh) rotate(600deg);opacity:.85}}
+  .rx-rain-piece{position:absolute;top:-40px;animation:rxRain linear forwards;user-select:none;pointer-events:none;opacity:.9}
+  @keyframes rxRain{0%{transform:translateY(0) rotate(-15deg);opacity:.9}100%{transform:translateY(105vh) rotate(15deg);opacity:0}}
 
   /* Превью в магазине */
   .shop-bg{width:62px;height:38px;border-radius:8px;border:1px solid var(--line)}
@@ -2525,8 +2527,36 @@ function buildWheelSVG(pool){
   </svg>`;
 }
 
-function launchConfetti(){
+// Дождь из эмодзи когда одна реакция набрала 3+ с отрывом 3 от следующей
+function launchReactionRain(emoji){
   const layer = document.createElement('div');
+  layer.className = 'confetti-layer';
+  document.body.appendChild(layer);
+  for(let i = 0; i < 24; i++){
+    const p = document.createElement('div');
+    p.className = 'rx-rain-piece';
+    p.textContent = emoji;
+    p.style.left = (Math.random() * 92 + 2) + '%';
+    p.style.fontSize = (18 + Math.random() * 18) + 'px';
+    p.style.animationDelay = (Math.random() * 1.2) + 's';
+    p.style.animationDuration = (2 + Math.random() * 2) + 's';
+    layer.appendChild(p);
+  }
+  setTimeout(() => layer.remove(), 5000);
+}
+// Проверяет counts реакций и запускает дождь если одна лидирует с отрывом ≥3
+function checkReactionRain(counts){
+  const sorted = REACTION_EMOJIS
+    .map(e => ({ e, n: counts[e]||0 }))
+    .filter(x => x.n >= 3)
+    .sort((a, b) => b.n - a.n);
+  if(!sorted.length) return;
+  const top = sorted[0];
+  const second = sorted[1] ? sorted[1].n : 0;
+  if(top.n - second >= 3) launchReactionRain(top.e);
+}
+
+function launchConfetti(){  const layer = document.createElement('div');
   layer.className = 'confetti-layer';
   document.body.appendChild(layer);
   const colors = ['#f5b942','#34d399','#38bdf8','#fb7185','#a78bfa','#fff3c4'];
@@ -3363,6 +3393,8 @@ async function renderReactions(container, owner, itemId, isOwn){
   });
 
   const canReact = !!myHandle && !isOwn;
+
+  checkReactionRain(counts);
 
   container.innerHTML = `<div class="rx-wrap">
     ${REACTION_EMOJIS.map(e=>`
