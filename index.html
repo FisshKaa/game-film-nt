@@ -2096,7 +2096,7 @@ function render(){
         <h2>Рейтинг</h2>
         <input type="text" class="search" id="searchInp" placeholder="Поиск по названию или жанру…" value="${esc(searchQuery)}" autocomplete="off">
         <button class="btn ghost" id="publishBtn">${myHandle?'Обновить в витрине':'Опубликовать профиль'}</button>
-        <button class="btn" id="addBtn">+ Новый обзор</button>
+        <button class="btn" id="addBtn">${boardTab==='collections'?'+ Новая коллекция':'+ Новый обзор'}</button>
       </div>
       <div class="board-tabs">
         <button class="btab ${boardTab==='reviews'?'active':''}" data-tab="reviews">Обзоры</button>
@@ -2104,7 +2104,7 @@ function render(){
       </div>
       <div id="statusChips">${boardTab==='reviews'?statusChipsHTML(games, statusFilter):''}</div>
       <div id="boardArea"></div>
-      ${boardTab==='collections'?`<button class="btn ghost" id="newCollBtn" style="margin-top:14px;width:100%">+ Новая коллекция</button>`:''}`;
+      `;
   } else {
     html += `
       <div class="bar"><h2>Витрина профилей</h2>
@@ -2136,9 +2136,7 @@ function wireMain(){
     b.addEventListener('click', ()=>{ boardTab = b.dataset.tab; render(); });
   });
   const addBtn = document.getElementById('addBtn');
-  if(addBtn) addBtn.addEventListener('click', ()=>openForm());
-  const newCollBtn = document.getElementById('newCollBtn');
-  if(newCollBtn) newCollBtn.addEventListener('click', ()=>openCollectionForm());
+  if(addBtn) addBtn.addEventListener('click', ()=>{ boardTab==='collections' ? openCollectionForm() : openForm(); });
   const pubBtn = document.getElementById('publishBtn');
   if(pubBtn) pubBtn.addEventListener('click', openPublish);
   const shopBtn = document.getElementById('shopBtn');
