@@ -1738,9 +1738,7 @@ async function loadRecentCollections(){
   const top = entries.slice(0, 2);
   if(!top.length){ el.innerHTML = '<div class="activity-empty mono">Пока нет коллекций от друзей.</div>'; return; }
   el.innerHTML = top.map(({p, coll}, idx)=>{
-    const saved = games; games = p.items||[];
-    const preview = collageHTML(coll);
-    games = saved;
+    const preview = collageHTML(coll, null, p.items||[]);
     const cnt = (coll.itemIds||[]).length;
     return `<div class="rc-item" data-idx="${idx}" data-owner="${esc(p.handle)}" data-coll-id="${esc(coll.id)}">
       <div class="rc-collage">${preview}</div>
@@ -2386,11 +2384,7 @@ function openFriendProfile(p, init){
       });
       loadBoardReactions(boardEl, p.handle);
     } else {
-      // Коллекции друга — нужно games = items друга для collageHTML
-      const saved = games;
-      games = list;
-      renderCollections(boardEl, fColls, true, fq);
-      games = saved;
+      renderCollections(boardEl, fColls, true, fq, list);
       // Перепривязываем клики с правильными аргументами
       boardEl.querySelectorAll('.coll-card').forEach(card=>{
         card.replaceWith(card.cloneNode(true));
@@ -3420,15 +3414,14 @@ async function renderReactions(container, owner, itemId, isOwn){
    КОЛЛЕКЦИИ (мульти-обзоры)
    ================================================================ */
 
-function collageHTML(coll, size){
+function collageHTML(coll, size, itemList){
   const szStyle = size ? `style="width:${size}px;height:${size}px;flex-shrink:0"` : '';
   const szClass = size ? 'coll-detail-collage' : '';
-  // Если задана своя обложка — используем её
   if(coll.cover){
     return `<div class="coll-cover1 ${szClass}" ${szStyle}><img src="${esc(coll.cover)}" alt="" onerror="this.closest('.coll-cover1').innerHTML='${domain==='movies'?'🎬':'🎮'}'"></div>`;
   }
-  const items = (coll.itemIds||[])
-    .map(id=>games.find(g=>g.id===id)).filter(Boolean);
+  const glist = itemList || games;
+  const items = (coll.itemIds||[]).map(id=>glist.find(g=>g.id===id)).filter(Boolean);
   const covers = items.map(g=>g.cover).filter(Boolean).slice(0,4);
   if(!covers.length){
     return `<div class="coll-nocover ${szClass}" ${szStyle}>${domain==='movies'?'🎬':'🎮'}</div>`;
@@ -3441,20 +3434,21 @@ function collageHTML(coll, size){
 }
 
 // Средняя оценка коллекции
-function collAvg(coll){
+function collAvg(coll, itemList){
+  const glist = itemList || games;
   const scored = (coll.itemIds||[])
-    .map(id=>games.find(g=>g.id===id)).filter(g=>g&&completedStatuses().includes(g.status));
+    .map(id=>glist.find(g=>g.id===id)).filter(g=>g&&completedStatuses().includes(g.status));
   if(!scored.length) return null;
   return scored.reduce((s,g)=>s+g.score,0)/scored.length;
 }
 
 // HTML одной карточки коллекции
-function collCardHTML(coll, readonly){
-  const avg = collAvg(coll);
+function collCardHTML(coll, readonly, itemList){
+  const avg = collAvg(coll, itemList);
   const t = avg!==null ? tierOf(avg) : null;
   const cnt = (coll.itemIds||[]).length;
   return `<div class="coll-card" data-coll-id="${esc(coll.id)}" data-ro="${readonly?1:0}">
-    ${collageHTML(coll)}
+    ${collageHTML(coll, null, itemList)}
     <div class="coll-card-body">
       <div class="coll-card-title">${esc(coll.title)}</div>
       <div class="coll-card-meta">
@@ -3467,7 +3461,7 @@ function collCardHTML(coll, readonly){
 }
 
 // Рендерит сетку коллекций в el
-function renderCollections(el, colls, readonly, query){
+function renderCollections(el, colls, readonly, query, itemList){
   if(!el) return;
   const filtered = query ? colls.filter(c=>c.title.toLowerCase().includes(query.toLowerCase())) : colls;
   if(!colls.length){
@@ -3478,11 +3472,11 @@ function renderCollections(el, colls, readonly, query){
     el.innerHTML = `<div class="empty-all" style="padding:28px 20px">Ничего не найдено.</div>`;
     return;
   }
-  el.innerHTML = `<div class="coll-grid">${filtered.map(c=>collCardHTML(c,readonly)).join('')}</div>`;
+  el.innerHTML = `<div class="coll-grid">${filtered.map(c=>collCardHTML(c,readonly,itemList)).join('')}</div>`;
   el.querySelectorAll('.coll-card').forEach(card=>{
     card.addEventListener('click', ()=>{
       const coll = filtered.find(c=>c.id===card.dataset.collId);
-      if(coll) openCollectionDetail(coll, readonly);
+      if(coll) openCollectionDetail(coll, readonly, null, itemList);
     });
   });
 }
