@@ -41,6 +41,15 @@
   @keyframes frFire{from{box-shadow:0 0 0 3px #fb923c,0 0 10px #f9731666}to{box-shadow:0 0 0 3px #f87171,0 0 22px #ef4444aa}}
   .fr-rainbow{animation:frRainbow 4s linear infinite}
   @keyframes frRainbow{0%{box-shadow:0 0 0 3px #f87171,0 0 16px #f8717188}25%{box-shadow:0 0 0 3px #fbbf24,0 0 16px #fbbf2488}50%{box-shadow:0 0 0 3px #34d399,0 0 16px #34d39988}75%{box-shadow:0 0 0 3px #38bdf8,0 0 16px #38bdf888}100%{box-shadow:0 0 0 3px #a78bfa,0 0 16px #a78bfa88}}
+  .fr-ice{box-shadow:0 0 0 3px #bae6fd, 0 0 14px #7dd3fc88}
+  .fr-royal{box-shadow:0 0 0 3px #7c3aed, 0 0 16px #7c3aed88;animation:frRoyal 2s ease-in-out infinite}
+  @keyframes frRoyal{0%,100%{box-shadow:0 0 0 3px #7c3aed,0 0 10px #7c3aed66}50%{box-shadow:0 0 0 3px #a78bfa,0 0 22px #a78bfaaa}}
+  .fr-pulse{animation:frPulse 1s ease-in-out infinite}
+  @keyframes frPulse{0%,100%{box-shadow:0 0 0 2px var(--accent),0 0 0 4px transparent}50%{box-shadow:0 0 0 2px var(--accent),0 0 0 6px var(--accent-dim)}}
+  .fr-toxic{box-shadow:0 0 0 3px #4ade80, 0 0 14px #4ade8088;animation:frToxic 1.4s ease-in-out infinite alternate}
+  @keyframes frToxic{from{box-shadow:0 0 0 3px #4ade80,0 0 8px #4ade8066}to{box-shadow:0 0 0 3px #a3e635,0 0 20px #a3e635aa}}
+  .fr-galaxy{animation:frGalaxy 6s linear infinite}
+  @keyframes frGalaxy{0%{box-shadow:0 0 0 3px #818cf8,0 0 18px #818cf888}20%{box-shadow:0 0 0 3px #38bdf8,0 0 18px #38bdf888}40%{box-shadow:0 0 0 3px #a78bfa,0 0 18px #a78bfa88}60%{box-shadow:0 0 0 3px #f472b6,0 0 18px #f472b688}80%{box-shadow:0 0 0 3px #34d399,0 0 18px #34d39988}100%{box-shadow:0 0 0 3px #818cf8,0 0 18px #818cf888}}
   .p-title{display:inline-block;margin-top:6px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--line);color:var(--text)}
   .lb-handle .p-title{margin-top:0;font-size:10px;padding:1px 7px}
   .shop-bal{font-family:'Space Mono',monospace;font-size:15px;margin:2px 0 10px}
@@ -58,12 +67,17 @@
   .shop-ti{font-size:12px;font-weight:700;padding:4px 10px;border-radius:20px;background:var(--surface2);border:1px solid var(--line)}
   .btn.sm.disabled,.shop-buy:disabled{opacity:.45;cursor:not-allowed}
 
-  /* Фон профиля (только background, чтобы не ломать паддинги) */
+  /* Фон профиля */
   .bg-aurora{background:linear-gradient(135deg,#1e3a5f,#2d1b4e 55%,#3d1f5c)!important}
   .bg-sunset{background:linear-gradient(135deg,#4a1e2b,#7a2e3a 60%,#b4632f)!important}
   .bg-ocean{background:linear-gradient(135deg,#0b3d5c,#1a6a8a 55%,#0d7377)!important}
   .bg-neon{background:linear-gradient(135deg,#0f2027,#203a43,#2c5364)!important}
   .bg-space{background:radial-gradient(1.5px 1.5px at 20% 30%,#fff,transparent),radial-gradient(1.5px 1.5px at 62% 68%,#fff,transparent),radial-gradient(1.5px 1.5px at 82% 22%,#dde,transparent),radial-gradient(1.5px 1.5px at 40% 80%,#fff,transparent),linear-gradient(160deg,#0b1026,#161a3a)!important}
+  .bg-forest{background:linear-gradient(135deg,#052e16,#14532d 55%,#166534)!important}
+  .bg-lava{background:linear-gradient(135deg,#450a0a,#7f1d1d 50%,#b91c1c)!important}
+  .bg-ice{background:linear-gradient(135deg,#0c4a6e,#075985 50%,#0369a1)!important}
+  .bg-void{background:radial-gradient(ellipse at 30% 40%,#1e1b4b 0%,#0f0e1a 60%,#000 100%)!important}
+  .bg-candy{background:linear-gradient(135deg,#4a044e,#7e22ce 45%,#ec4899 100%)!important}
   .fp-head{padding:12px;border-radius:14px}
   .name-row{display:flex;align-items:center;gap:8px}
   .p-nbadge{font-size:20px;line-height:1;flex-shrink:0}
@@ -82,6 +96,14 @@
   .fx-shimmer{background:linear-gradient(90deg,#a78bfa,#38bdf8,#34d399,#a78bfa);background-size:300% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:fxShimmer 3s linear infinite}
   @keyframes fxShimmer{0%{background-position:0% 50%}100%{background-position:300% 50%}}
   .fx-fire{background:linear-gradient(0deg,#f59e0b,#ef4444);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:fxGlow 1.2s ease-in-out infinite}
+  .fx-glitch{animation:fxGlitch 2.5s infinite}
+  @keyframes fxGlitch{0%,90%,100%{text-shadow:none}91%{text-shadow:-2px 0 #f87171,2px 0 #38bdf8}93%{text-shadow:2px 0 #f87171,-2px 0 #38bdf8}95%{text-shadow:-2px 0 #a78bfa,2px 0 #34d399}97%{text-shadow:none}}
+  .fx-ice{background:linear-gradient(90deg,#bae6fd,#e0f2fe,#7dd3fc);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent}
+  .fx-matrix{background:linear-gradient(180deg,#4ade80,#16a34a);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:fxMatrix 1.5s ease-in-out infinite alternate}
+  @keyframes fxMatrix{from{filter:brightness(1)}to{filter:brightness(1.8) drop-shadow(0 0 6px #4ade80)}}
+  .fx-neon{color:#f0abfc;animation:fxNeon 1s ease-in-out infinite alternate}
+  @keyframes fxNeon{from{text-shadow:0 0 4px #f0abfc,0 0 12px #d946ef}to{text-shadow:0 0 8px #f0abfc,0 0 24px #d946ef,0 0 40px #a21caf}}
+  .fx-rainbow{background:linear-gradient(90deg,#f87171,#fb923c,#fbbf24,#34d399,#38bdf8,#818cf8,#f472b6,#f87171);background-size:400% 100%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;color:transparent;animation:fxShimmer 2s linear infinite}
 
   /* Скины рулетки + конфетти */
   .wheel-wrap.rs-neon{filter:drop-shadow(0 0 10px #22d3eeaa)}
@@ -1437,16 +1459,26 @@ function statusChipsHTML(list, active){
 /* ---------------- Магазин Добрикоина: косметика профиля ---------------- */
 const SHOP = [
   // Рамки аватара
-  { id:'fr_gold',    cat:'frame', label:'Золотая рамка',  price:150, cls:'fr-gold' },
-  { id:'fr_neon',    cat:'frame', label:'Неоновая рамка', price:250, cls:'fr-neon' },
-  { id:'fr_fire',    cat:'frame', label:'Огненная рамка', price:400, cls:'fr-fire' },
-  { id:'fr_rainbow', cat:'frame', label:'Радужная рамка', price:600, cls:'fr-rainbow' },
+  { id:'fr_gold',    cat:'frame', label:'Золотая рамка',  price:150,  cls:'fr-gold' },
+  { id:'fr_neon',    cat:'frame', label:'Неоновая рамка', price:250,  cls:'fr-neon' },
+  { id:'fr_fire',    cat:'frame', label:'Огненная рамка', price:400,  cls:'fr-fire' },
+  { id:'fr_rainbow', cat:'frame', label:'Радужная рамка', price:600,  cls:'fr-rainbow' },
+  { id:'fr_ice',     cat:'frame', label:'Ледяная',        price:350,  cls:'fr-ice' },
+  { id:'fr_royal',   cat:'frame', label:'Королевская',    price:800,  cls:'fr-royal' },
+  { id:'fr_pulse',   cat:'frame', label:'Пульс',          price:500,  cls:'fr-pulse' },
+  { id:'fr_toxic',   cat:'frame', label:'Токсичная',      price:450,  cls:'fr-toxic' },
+  { id:'fr_galaxy',  cat:'frame', label:'Галактика',      price:1200, cls:'fr-galaxy' },
   // Цвет имени
   { id:'ac_emerald', cat:'accent', label:'Изумруд', price:120, color:'#34d399' },
   { id:'ac_sunset',  cat:'accent', label:'Закат',   price:120, color:'#fb923c' },
   { id:'ac_ocean',   cat:'accent', label:'Океан',   price:120, color:'#38bdf8' },
   { id:'ac_rose',    cat:'accent', label:'Роза',    price:120, color:'#fb7185' },
   { id:'ac_violet',  cat:'accent', label:'Аметист', price:120, color:'#a78bfa' },
+  { id:'ac_mint',    cat:'accent', label:'Мята',    price:180, color:'#6ee7b7' },
+  { id:'ac_coral',   cat:'accent', label:'Коралл',  price:180, color:'#f97316' },
+  { id:'ac_gold',    cat:'accent', label:'Золото',  price:250, color:'#f5b942' },
+  { id:'ac_crimson', cat:'accent', label:'Малина',  price:200, color:'#e11d48' },
+  { id:'ac_arctic',  cat:'accent', label:'Арктика', price:200, color:'#7dd3fc' },
   // Титулы
   { id:'ti_collector', cat:'title', label:'🏆 Коллекционер', price:300 },
   { id:'ti_cinephile', cat:'title', label:'🎬 Киноман',      price:300 },
@@ -1454,18 +1486,33 @@ const SHOP = [
   { id:'ti_gambler',   cat:'title', label:'🎲 Азартный',     price:350 },
   { id:'ti_critic',    cat:'title', label:'✍️ Критик',       price:300 },
   { id:'ti_kind',      cat:'title', label:'👑 Добряк',        price:500 },
+  { id:'ti_legend',    cat:'title', label:'⚡ Легенда',       price:800 },
+  { id:'ti_ghost',     cat:'title', label:'👻 Призрак',       price:400 },
+  { id:'ti_nerd',      cat:'title', label:'🤓 Задрот',        price:250 },
+  { id:'ti_whale',     cat:'title', label:'🐳 Кит',           price:600 },
+  { id:'ti_chad',      cat:'title', label:'😎 Чад',           price:450 },
 
-  // Фон профиля (1000–2500)
-  { id:'bg_aurora', cat:'background', label:'Аврора', price:1000, cls:'bg-aurora' },
-  { id:'bg_sunset', cat:'background', label:'Закат',  price:1200, cls:'bg-sunset' },
-  { id:'bg_ocean',  cat:'background', label:'Океан',  price:1500, cls:'bg-ocean' },
-  { id:'bg_neon',   cat:'background', label:'Неон',   price:2000, cls:'bg-neon' },
-  { id:'bg_space',  cat:'background', label:'Космос', price:2500, cls:'bg-space' },
-  // Анимация имени (1500–4000) — поверх обычного цвета
-  { id:'fx_gold',    cat:'nameFx', label:'Золото',   price:1500, cls:'fx-gold' },
-  { id:'fx_glow',    cat:'nameFx', label:'Свечение', price:1800, cls:'fx-glow' },
-  { id:'fx_shimmer', cat:'nameFx', label:'Перелив',  price:3000, cls:'fx-shimmer' },
-  { id:'fx_fire',    cat:'nameFx', label:'Пламя',    price:4000, cls:'fx-fire' },
+  // Фон профиля (1000–3500)
+  { id:'bg_aurora',  cat:'background', label:'Аврора',    price:1000, cls:'bg-aurora' },
+  { id:'bg_sunset',  cat:'background', label:'Закат',     price:1200, cls:'bg-sunset' },
+  { id:'bg_ocean',   cat:'background', label:'Океан',     price:1500, cls:'bg-ocean' },
+  { id:'bg_neon',    cat:'background', label:'Неон',      price:2000, cls:'bg-neon' },
+  { id:'bg_space',   cat:'background', label:'Космос',    price:2500, cls:'bg-space' },
+  { id:'bg_forest',  cat:'background', label:'Лес',       price:1100, cls:'bg-forest' },
+  { id:'bg_lava',    cat:'background', label:'Лава',      price:1800, cls:'bg-lava' },
+  { id:'bg_ice',     cat:'background', label:'Лёд',       price:1300, cls:'bg-ice' },
+  { id:'bg_void',    cat:'background', label:'Пустота',   price:3000, cls:'bg-void' },
+  { id:'bg_candy',   cat:'background', label:'Конфеты',   price:900,  cls:'bg-candy' },
+  // Анимация имени (1500–5000) — поверх обычного цвета
+  { id:'fx_gold',    cat:'nameFx', label:'Золото',     price:1500, cls:'fx-gold' },
+  { id:'fx_glow',    cat:'nameFx', label:'Свечение',   price:1800, cls:'fx-glow' },
+  { id:'fx_shimmer', cat:'nameFx', label:'Перелив',    price:3000, cls:'fx-shimmer' },
+  { id:'fx_fire',    cat:'nameFx', label:'Пламя',      price:4000, cls:'fx-fire' },
+  { id:'fx_glitch',  cat:'nameFx', label:'Глитч',      price:2500, cls:'fx-glitch' },
+  { id:'fx_ice',     cat:'nameFx', label:'Лёд',        price:2000, cls:'fx-ice' },
+  { id:'fx_matrix',  cat:'nameFx', label:'Матрица',    price:3500, cls:'fx-matrix' },
+  { id:'fx_neon',    cat:'nameFx', label:'Неон-пульс', price:2200, cls:'fx-neon' },
+  { id:'fx_rainbow', cat:'nameFx', label:'Радуга',     price:5000, cls:'fx-rainbow' },
   // Значок перед ником (1000–3000)
   { id:'bd_check',   cat:'badge', label:'Галочка', price:1000, sym:'✔️' },
   { id:'bd_star',    cat:'badge', label:'Звезда',  price:1200, sym:'⭐' },
