@@ -646,6 +646,10 @@
   .rx-active .rx-cnt{color:var(--accent)}
   .rx-hint{font-size:12px;color:var(--muted2);font-style:italic;margin-left:4px}
   .rx-loading{color:var(--muted2);font-size:13px;padding:6px 0}
+  .rx-pills{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px}
+  .rx-pill{display:inline-flex;align-items:center;gap:3px;background:var(--surface2);
+    border:1px solid var(--line);border-radius:20px;padding:2px 8px;font-size:13px;cursor:default}
+  .rx-pill b{font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);font-weight:700}
 
   .foot{text-align:center;margin-top:34px;font-size:12px;color:var(--muted2)}
 
@@ -1362,7 +1366,7 @@ async function loadFriendsReviews(){
   const profiles = await listProfiles();
   const reviews = [];
   profiles.forEach(p=>{
-    if(myHandle && p.handle === myHandle) return; // себя не показываем
+    if(myHandle && p.handle === myHandle) return;
     (p.items||[]).forEach(it=>{
       if(it && it.status === doneStatus() && it.review && it.review.trim()) reviews.push({ p, item: it });
     });
@@ -1373,10 +1377,32 @@ async function loadFriendsReviews(){
     listEl.innerHTML = `<div class="activity-empty mono">Пока нет обзоров от друзей.</div>`;
     return;
   }
+
+  // Пакетная загрузка реакций для всех обзоров одним запросом
+  let rxMap = {}; // { 'owner:itemId': { emoji: count } }
+  try{
+    const ids = top.map(({p,item})=>`${domain}:${p.handle}:${item.id}:*`);
+    // Supabase не поддерживает wildcard, грузим по owner+item_id через or
+    const filters = top.map(({p,item})=>`and(owner.eq.${p.handle},item_id.eq.${item.id})`).join(',');
+    const { data } = await sb.from('reactions').select('owner,item_id,emoji')
+      .eq('domain', domain).or(filters);
+    (data||[]).forEach(r=>{
+      const k = `${r.owner}:${r.item_id}`;
+      if(!rxMap[k]) rxMap[k] = {};
+      rxMap[k][r.emoji] = (rxMap[k][r.emoji]||0) + 1;
+    });
+  }catch(e){ /* реакции недоступны — покажем без них */ }
+
   listEl.innerHTML = top.map(({p, item}, idx)=>{
     const t = tierOf(item.score);
     const raw = item.review.trim();
     const snippet = esc(raw.length > 110 ? raw.slice(0,110)+'…' : raw);
+    const rxKey = `${p.handle}:${item.id}`;
+    const rxCounts = rxMap[rxKey] || {};
+    const rxHTML = REACTION_EMOJIS
+      .filter(e => rxCounts[e] > 0)
+      .map(e => `<span class="rx-pill">${e}<b>${rxCounts[e]}</b></span>`)
+      .join('');
     return `
       <div class="review-item" data-idx="${idx}">
         <div class="review-top">
@@ -1386,12 +1412,16 @@ async function loadFriendsReviews(){
         </div>
         <div class="review-title">${esc(item.title)}</div>
         <div class="review-snippet">${snippet}</div>
+        ${rxHTML ? `<div class="rx-pills">${rxHTML}</div>` : ''}
       </div>`;
   }).join('');
+
   listEl.querySelectorAll('.review-item').forEach(el=>{
     el.addEventListener('click', ()=>{
       const { p, item } = top[+el.dataset.idx];
-      openDetail(item.id, p.items, true);
+      const list = p.items || [];
+      list.__owner = p.handle;
+      openDetail(item.id, list, true);
     });
   });
 }
