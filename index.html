@@ -2390,8 +2390,6 @@ function openFriendProfile(p, init){
       const saved = games;
       games = list;
       renderCollections(boardEl, fColls, true, fq);
-      // Реакции на коллекции
-      loadBoardReactions(boardEl, p.handle);
       // Перепривязываем клики: открываем детали с games=list (для коллажа из обложек)
       boardEl.querySelectorAll('.coll-card').forEach(card=>{
         card.replaceWith(card.cloneNode(true));
@@ -2406,6 +2404,8 @@ function openFriendProfile(p, init){
         });
       });
       games = saved;
+      // Реакции — после replaceWith, чтобы не потерялись при клонировании
+      loadBoardReactions(boardEl, p.handle);
     }
   }
 
