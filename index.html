@@ -2171,7 +2171,7 @@ function wireCards(el, list, readonly, onBack){
 function renderBoard(){
   const el = document.getElementById('boardArea');
   if(boardTab === 'collections'){
-    renderCollections(el, collections, false);
+    renderCollections(el, collections, false, searchQuery);
   } else {
     fillBoard(el, games, { readonly:false, query:searchQuery, status:statusFilter });
     if(myHandle) loadBoardReactions(el, null);
@@ -2260,10 +2260,9 @@ function openFriendProfile(p, init){
       <button class="btab ${fTab==='reviews'?'active':''}" data-tab="reviews">Обзоры</button>
       <button class="btab ${fTab==='collections'?'active':''}" data-tab="collections">Коллекции <span class="btab-cnt">${fColls.length||''}</span></button>
     </div>
+    <input type="text" class="search" id="friendSearch" placeholder="Поиск по названию или жанру…" style="max-width:none;width:100%;margin:8px 0 6px" value="${esc(fq)}" autocomplete="off">
     <div id="fTabReviews" ${fTab!=='reviews'?'style="display:none"':''}>
-      ${list.length ? `
-        <input type="text" class="search" id="friendSearch" placeholder="Поиск по названию или жанру…" style="max-width:none;width:100%;margin:8px 0 12px" value="${esc(fq)}" autocomplete="off">
-        <div id="friendChips">${statusChipsHTML(list, fSt)}</div>` : ''}
+      ${list.length ? `<div id="friendChips">${statusChipsHTML(list, fSt)}</div>` : ''}
     </div>
     <div id="friendBoard"></div>
   `, ('fp-modal'+bgClass(p.cosmetics)));
@@ -2282,7 +2281,7 @@ function openFriendProfile(p, init){
       // Коллекции друга — нужно games = items друга для collageHTML
       const saved = games;
       games = list;
-      renderCollections(boardEl, fColls, true);
+      renderCollections(boardEl, fColls, true, fq);
       // Реакции на коллекции
       loadBoardReactions(boardEl, p.handle);
       // Перепривязываем клики: открываем детали с games=list (для коллажа из обложек)
@@ -3331,25 +3330,21 @@ function collCardHTML(coll, readonly){
 }
 
 // Рендерит сетку коллекций в el
-function renderCollections(el, colls, readonly){
+function renderCollections(el, colls, readonly, query){
   if(!el) return;
+  const filtered = query ? colls.filter(c=>c.title.toLowerCase().includes(query.toLowerCase())) : colls;
   if(!colls.length){
     el.innerHTML = `<div class="empty-all" style="padding:28px 20px"><b>Пока нет коллекций</b>${readonly?'У этого пользователя нет коллекций.':'Собери серию или подборку — нажми «+ Новая коллекция».'}</div>`;
     return;
   }
-  el.innerHTML = `
-    <input type="text" class="search" id="collSearch" placeholder="Поиск по названию коллекции…" autocomplete="off" style="margin-bottom:12px">
-    <div class="coll-grid" id="collGrid">${colls.map(c=>collCardHTML(c,readonly)).join('')}</div>`;
-  document.getElementById('collSearch').addEventListener('input', function(){
-    const q = this.value.trim().toLowerCase();
-    el.querySelectorAll('.coll-card').forEach((card, i)=>{
-      const title = colls[i] ? colls[i].title.toLowerCase() : '';
-      card.style.display = (!q || title.includes(q)) ? '' : 'none';
-    });
-  });
+  if(!filtered.length){
+    el.innerHTML = `<div class="empty-all" style="padding:28px 20px">Ничего не найдено.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="coll-grid">${filtered.map(c=>collCardHTML(c,readonly)).join('')}</div>`;
   el.querySelectorAll('.coll-card').forEach(card=>{
     card.addEventListener('click', ()=>{
-      const coll = colls.find(c=>c.id===card.dataset.collId);
+      const coll = filtered.find(c=>c.id===card.dataset.collId);
       if(coll) openCollectionDetail(coll, readonly);
     });
   });
