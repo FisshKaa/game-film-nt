@@ -2489,16 +2489,24 @@ function centerInner(cfg){
 // Строит SVG-колесо: по сегменту на игру из пула
 function buildWheelSVG(pool){
   const N = pool.length;
-  const cx = 150, cy = 150, R = 142, labelR = 92;
+  const cx = 150, cy = 150, R = 142, imgR = 30, labelR = 92;
   if(N === 1){
     const g = pool[0];
+    const imgX = cx - imgR, imgY = cy - 60 - imgR;
     return `<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
       <circle cx="${cx}" cy="${cy}" r="${R}" fill="${statusColor(g.status)}" stroke="var(--ink)" stroke-width="2"/>
-      <text x="${cx}" y="${cy-40}" text-anchor="middle" font-size="13" font-family="'Hanken Grotesk',sans-serif" font-weight="700" fill="#12121a">${esc(truncTitle(g.title,16))}</text>
+      ${g.cover ? `<defs><clipPath id="cp_s"><circle cx="${cx}" cy="${cy-60}" r="${imgR}"/></clipPath></defs>
+        <image href="${g.cover}" x="${imgX}" y="${imgY}" width="${imgR*2}" height="${imgR*2}" clip-path="url(#cp_s)" preserveAspectRatio="xMidYMid slice"/>` :
+        `<text x="${cx}" y="${cy-40}" text-anchor="middle" font-size="13" font-family="'Hanken Grotesk',sans-serif" font-weight="700" fill="#12121a">${esc(truncTitle(g.title,16))}</text>`}
       <circle cx="${cx}" cy="${cy}" r="17" fill="var(--ink2)" stroke="var(--accent)" stroke-width="2"/>
     </svg>`;
   }
   const seg = 360 / N;
+  // Размер иконки: меньше при большом количестве сегментов
+  const ir = N > 18 ? 10 : N > 12 ? 14 : N > 8 ? 18 : 22;
+  // Радиус размещения иконок / текста
+  const picR = N > 18 ? 80 : N > 12 ? 78 : N > 8 ? 75 : 72;
+  let defs = '<defs>';
   let paths = '', labels = '';
   for(let i=0;i<N;i++){
     const a0 = i*seg, a1 = (i+1)*seg;
@@ -2508,13 +2516,24 @@ function buildWheelSVG(pool){
     const col = statusColor(g.status);
     paths += `<path d="M${cx} ${cy} L${p0.x.toFixed(2)} ${p0.y.toFixed(2)} A${R} ${R} 0 ${large} 1 ${p1.x.toFixed(2)} ${p1.y.toFixed(2)} Z" fill="${col}" stroke="var(--ink)" stroke-width="1.5"/>`;
     const mid = a0 + seg/2;
-    const lp = wheelPolar(cx,cy,labelR,mid);
-    let rot = mid; if(mid > 90 && mid < 270) rot += 180;   // переворот подписи в нижней половине
-    const fs = N > 18 ? 8 : (N > 12 ? 9.5 : 11);
-    const maxCh = N > 18 ? 7 : (N > 12 ? 10 : 14);
-    labels += `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${lp.x.toFixed(2)} ${lp.y.toFixed(2)})" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-family="'Hanken Grotesk',sans-serif" font-weight="600" fill="#12121a">${esc(truncTitle(g.title, maxCh))}</text>`;
+    const lp = wheelPolar(cx,cy,picR,mid);
+    if(g.cover){
+      // Картинка в круглом clip-path
+      defs += `<clipPath id="cp${i}"><circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir}"/></clipPath>`;
+      labels += `<image href="${g.cover}" x="${(lp.x-ir).toFixed(2)}" y="${(lp.y-ir).toFixed(2)}" width="${ir*2}" height="${ir*2}" clip-path="url(#cp${i})" preserveAspectRatio="xMidYMid slice"/>`;
+      // Тонкая рамка вокруг картинки
+      labels += `<circle cx="${lp.x.toFixed(2)}" cy="${lp.y.toFixed(2)}" r="${ir}" fill="none" stroke="rgba(0,0,0,.35)" stroke-width="1"/>`;
+    } else {
+      // Нет обложки — рисуем текст как раньше
+      let rot = mid; if(mid > 90 && mid < 270) rot += 180;
+      const fs = N > 18 ? 8 : (N > 12 ? 9.5 : 11);
+      const maxCh = N > 18 ? 7 : (N > 12 ? 10 : 14);
+      labels += `<text x="${lp.x.toFixed(2)}" y="${lp.y.toFixed(2)}" transform="rotate(${rot.toFixed(1)} ${lp.x.toFixed(2)} ${lp.y.toFixed(2)})" text-anchor="middle" dominant-baseline="middle" font-size="${fs}" font-family="'Hanken Grotesk',sans-serif" font-weight="600" fill="#12121a">${esc(truncTitle(g.title, maxCh))}</text>`;
+    }
   }
+  defs += '</defs>';
   return `<svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+    ${defs}
     <circle cx="${cx}" cy="${cy}" r="${R}" fill="var(--ink2)"/>
     ${paths}${labels}
     <circle cx="${cx}" cy="${cy}" r="17" fill="var(--ink2)" stroke="var(--accent)" stroke-width="2"/>
