@@ -2039,8 +2039,9 @@ function cardHTML(g, opts){
   const cover = g.cover ? `<div class="cov"><img src="${esc(g.cover)}" alt="" loading="lazy" onerror="this.closest('.cov').style.display='none';this.closest('.card').classList.remove('has-cover')"></div>` : '';
   let tags = '';
   if(opts.showStatus !== false && g.status){
-    const dot = opts.statusDot ? `<span class="sdot" style="background:${statusColor(g.status)}"></span>` : '';
-    tags += `<div class="cstatus">${dot}${esc(g.status)}</div>`;
+    const sc = statusColor(g.status);
+    const dot = opts.statusDot ? `<span class="sdot" style="background:${sc}"></span>` : '';
+    tags += `<div class="cstatus" style="color:${sc};border-color:${sc}44;background:${sc}11">${dot}${esc(g.status)}</div>`;
   }
   if(opts.noReviewTag && !(g.review && g.review.trim())){
     tags += `<div class="cstatus noreview">без обзора</div>`;
