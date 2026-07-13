@@ -1732,7 +1732,7 @@ async function loadRecentCollections(){
     const preview = collageHTML(coll);
     games = saved;
     const cnt = (coll.itemIds||[]).length;
-    return `<div class="rc-item" data-idx="${idx}">
+    return `<div class="rc-item" data-idx="${idx}" data-owner="${esc(p.handle)}" data-coll-id="${esc(coll.id)}">
       <div class="rc-collage">${preview}</div>
       <div class="rc-info">
         <div class="rc-who">
@@ -1741,9 +1741,26 @@ async function loadRecentCollections(){
         </div>
         <div class="rc-title">${esc(coll.title)}</div>
         <div class="rc-cnt">${cnt} ${domain==='movies'?'фильм':'игр'}${cnt===1?'а':cnt<5?'ы':''}</div>
+        <div class="card-rx" data-item-id="coll:${esc(coll.id)}"></div>
       </div>
     </div>`;
   }).join('');
+
+  // Загружаем реакции для каждой коллекции от её владельца
+  for(const {p, coll} of top){
+    const cell = el.querySelector(`.card-rx[data-item-id="coll:${coll.id}"]`);
+    if(!cell) continue;
+    try{
+      const { data } = await sb.from('reactions').select('emoji')
+        .eq('domain', domain).eq('owner', p.handle).eq('item_id', 'coll:'+coll.id);
+      const counts = {};
+      (data||[]).forEach(r=>{ counts[r.emoji] = (counts[r.emoji]||0)+1; });
+      const pills = REACTION_EMOJIS.filter(e=>counts[e]>0)
+        .map(e=>`<span class="rx-pill">${e}<b>${counts[e]}</b></span>`).join('');
+      cell.innerHTML = pills;
+    }catch(e){}
+  }
+
   el.querySelectorAll('.rc-item').forEach(item=>{
     item.addEventListener('click', ()=>{
       const { p, coll } = top[+item.dataset.idx];
@@ -2253,6 +2270,7 @@ function renderBoard(){
   const el = document.getElementById('boardArea');
   if(boardTab === 'collections'){
     renderCollections(el, collections, false, searchQuery);
+    if(myHandle) loadBoardReactions(el, myHandle);
   } else {
     fillBoard(el, games, { readonly:false, query:searchQuery, status:statusFilter });
     if(myHandle) loadBoardReactions(el, null);
