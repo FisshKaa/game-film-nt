@@ -1772,9 +1772,7 @@ async function loadRecentCollections(){
   el.querySelectorAll('.rc-item').forEach(item=>{
     item.addEventListener('click', ()=>{
       const { p, coll } = top[+item.dataset.idx];
-      const saved = games; games = p.items||[];
-      openCollectionDetail(coll, true, p.handle);
-      games = saved;
+      openCollectionDetail(coll, true, p.handle, p.items||[]);
     });
   });
 }
@@ -2390,7 +2388,8 @@ function openFriendProfile(p, init){
       const saved = games;
       games = list;
       renderCollections(boardEl, fColls, true, fq);
-      // Перепривязываем клики: открываем детали с games=list (для коллажа из обложек)
+      games = saved;
+      // Перепривязываем клики с правильными аргументами
       boardEl.querySelectorAll('.coll-card').forEach(card=>{
         card.replaceWith(card.cloneNode(true));
       });
@@ -2398,12 +2397,10 @@ function openFriendProfile(p, init){
         card.addEventListener('click', ()=>{
           const coll = fColls.find(c=>c.id===card.dataset.collId);
           if(!coll) return;
-          const gSaved = games; games = list;
-          openCollectionDetail(coll, true, p.handle);
-          games = gSaved;
+          openCollectionDetail(coll, true, p.handle, list,
+            ()=>openFriendProfile(p, {fq, fSt, fTab:'collections'}));
         });
       });
-      games = saved;
       // Реакции — после replaceWith, чтобы не потерялись при клонировании
       loadBoardReactions(boardEl, p.handle);
     }
@@ -3459,10 +3456,11 @@ function renderCollections(el, colls, readonly, query){
 }
 
 // Детальный просмотр коллекции
-function openCollectionDetail(coll, readonly, owner){
+function openCollectionDetail(coll, readonly, owner, itemList, onBack){
+  const glist = itemList || games;  // игры владельца коллекции
   const avg = collAvg(coll);
   const t = avg!==null ? tierOf(avg) : null;
-  const items = (coll.itemIds||[]).map(id=>games.find(g=>g.id===id)).filter(Boolean);
+  const items = (coll.itemIds||[]).map(id=>glist.find(g=>g.id===id)).filter(Boolean);
   const iconsHTML = items.map(g=>`
     <div class="coll-detail-item" data-game-id="${g.id}">
       ${g.cover?`<img src="${esc(g.cover)}" alt="" onerror="this.style.display='none'">`:`<div class="coll-nocover" style="width:48px;height:48px;font-size:22px">${domain==='movies'?'🎬':'🎮'}</div>`}
@@ -3471,6 +3469,7 @@ function openCollectionDetail(coll, readonly, owner){
     </div>`).join('');
   showModal(`
     <button class="close" onclick="__close()">×</button>
+    ${onBack?`<button class="btn ghost sm modal-back" id="collBackBtn">← Назад в профиль</button>`:''}
     <div class="coll-detail-head">
       ${collageHTML(coll, 80)}
       <div>
@@ -3487,15 +3486,23 @@ function openCollectionDetail(coll, readonly, owner){
     </div>`:''}
   `);
 
+  const backBtn = document.getElementById('collBackBtn');
+  if(backBtn && onBack) backBtn.addEventListener('click', onBack);
+
   // Реакции на коллекцию
   const rxEl = document.getElementById('rxContainerColl');
   if(rxEl) renderReactions(rxEl, owner || (readonly?null:myHandle), 'coll:'+coll.id, !readonly&&!owner);
 
-  // Клик по игре — открывает её обзор
+  // Клик по игре — открывает её обзор (используем glist — игры владельца)
   modal.querySelectorAll('.coll-detail-item').forEach(el=>{
     el.addEventListener('click', ()=>{
-      const g = games.find(x=>x.id===el.dataset.gameId);
-      if(g) openDetail(g.id, games, readonly, ()=>openCollectionDetail(coll, readonly, owner), '← Назад к коллекции');
+      const g = glist.find(x=>x.id===el.dataset.gameId);
+      if(!g) return;
+      const list = glist === games ? games : glist;
+      if(readonly) list.__owner = owner;
+      openDetail(g.id, list, readonly,
+        ()=>openCollectionDetail(coll, readonly, owner, itemList, onBack),
+        '← Назад к коллекции');
     });
   });
 
