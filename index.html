@@ -3433,11 +3433,11 @@ function collageHTML(coll, size, itemList){
   return `<div class="coll-collage coll-n${covers.length} ${szClass}" ${szStyle}>${cells}</div>`;
 }
 
-// Средняя оценка коллекции
+// Средняя оценка коллекции — по всем играм у которых есть оценка
 function collAvg(coll, itemList){
   const glist = itemList || games;
   const scored = (coll.itemIds||[])
-    .map(id=>glist.find(g=>g.id===id)).filter(g=>g&&completedStatuses().includes(g.status));
+    .map(id=>glist.find(g=>g.id===id)).filter(g=>g && typeof g.score==='number' && !isNaN(g.score));
   if(!scored.length) return null;
   return scored.reduce((s,g)=>s+g.score,0)/scored.length;
 }
