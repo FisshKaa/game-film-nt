@@ -3318,7 +3318,7 @@ function collCardHTML(coll, readonly){
   const t = avg!==null ? tierOf(avg) : null;
   const cnt = (coll.itemIds||[]).length;
   return `<div class="coll-card" data-coll-id="${esc(coll.id)}" data-ro="${readonly?1:0}">
-    ${collageHTML(coll, 80)}
+    ${collageHTML(coll)}
     <div class="coll-card-body">
       <div class="coll-card-title">${esc(coll.title)}</div>
       <div class="coll-card-meta">
