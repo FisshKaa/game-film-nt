@@ -3483,8 +3483,8 @@ function renderCollections(el, colls, readonly, query, itemList){
 
 // Детальный просмотр коллекции
 function openCollectionDetail(coll, readonly, owner, itemList, onBack){
-  const glist = itemList || games;  // игры владельца коллекции
-  const avg = collAvg(coll);
+  const glist = itemList || games;
+  const avg = collAvg(coll, glist);
   const t = avg!==null ? tierOf(avg) : null;
   const items = (coll.itemIds||[]).map(id=>glist.find(g=>g.id===id)).filter(Boolean);
   const iconsHTML = items.map(g=>`
@@ -3497,7 +3497,7 @@ function openCollectionDetail(coll, readonly, owner, itemList, onBack){
     <button class="close" onclick="__close()">×</button>
     ${onBack?`<button class="btn ghost sm modal-back" id="collBackBtn">← Назад в профиль</button>`:''}
     <div class="coll-detail-head">
-      ${collageHTML(coll, 80)}
+      ${collageHTML(coll, 80, glist)}
       <div>
         <h3 style="margin-bottom:4px">${esc(coll.title)}</h3>
         <div class="rd-meta">${items.length} ${domain==='movies'?'фильм':'игр'}${items.length===1?'а':items.length<5?'ы':''} ${t?`· <span style="color:${t.color}">avg ${avg.toFixed(1)}</span>`:''}</div>
