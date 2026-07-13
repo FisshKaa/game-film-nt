@@ -221,7 +221,33 @@
   .activity-info{min-width:0;flex:1}
   .activity-name{font-weight:700;font-size:13px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .activity-game{font-size:12px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .activity-more{font-size:11px;color:var(--muted2);margin-left:4px}
+  /* Новая раскладка: человек → горизонтальный скролл карточек */
+  .act-person{margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .act-person:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0}
+  .act-person-head{display:flex;align-items:center;gap:7px;margin-bottom:8px}
+  .act-av-sm{width:26px!important;height:26px!important;font-size:14px!important;border-radius:8px!important}
+  .act-person-name{font-weight:700;font-size:13px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .act-person-cnt{font-family:'Space Mono',monospace;font-size:10px;color:var(--muted2);
+    background:var(--surface2);border:1px solid var(--line);border-radius:20px;padding:1px 7px;flex-shrink:0}
+  .act-hscroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scroll-snap-type:x mandatory;
+    scrollbar-width:none;-ms-overflow-style:none}
+  .act-hscroll::-webkit-scrollbar{display:none}
+  .act-card{flex:0 0 120px;scroll-snap-align:start;background:var(--surface);border:1px solid var(--line);
+    border-radius:12px;overflow:hidden;cursor:pointer;position:relative;
+    transition:border-color .15s,transform .15s;display:flex;flex-direction:column}
+  .act-card:hover{border-color:var(--muted2);transform:translateY(-2px)}
+  .act-card-cover{width:100%;height:80px;object-fit:cover;display:block;flex-shrink:0}
+  .act-card-nocover{width:100%;height:80px;display:grid;place-items:center;font-size:28px;
+    background:var(--ink2);flex-shrink:0}
+  .act-card-body{padding:6px 8px;flex:1;min-height:0}
+  .act-card-title{font-size:11.5px;font-weight:700;line-height:1.3;display:-webkit-box;
+    -webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .act-card-genre{font-size:10px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .act-pot-badge{font-size:10px;color:#f5c451;margin-top:4px;font-family:'Space Mono',monospace}
+  .act-bet-btn{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);border:1px solid var(--line);
+    border-radius:7px;width:24px;height:24px;font-size:12px;cursor:pointer;
+    display:grid;place-items:center;opacity:0;transition:opacity .15s}
+  .act-card:hover .act-bet-btn{opacity:1}
   .activity-pot{font-size:10.5px;color:#f5c451;margin-top:6px;cursor:pointer;user-select:none}
   .activity-pot:hover{color:#ffd873}
   .bet-list{margin-top:6px;padding-top:6px;border-top:1px dashed var(--line)}
@@ -1285,7 +1311,7 @@ async function resolveBet(betId, win){
   loadLeaderboard();
 }
 
-// Сайдбар "Сейчас играют/смотрят" — показывает друзей с активным статусом
+// Сайдбар "Сейчас играют/смотрят" — группировка по человеку, горизонтальный скролл
 async function loadFriendsActivity(){
   const titleEl = document.getElementById('activityTitle');
   const listEl  = document.getElementById('activityList');
@@ -1296,13 +1322,21 @@ async function loadFriendsActivity(){
   listEl.innerHTML = '<div class="activity-empty mono">Загрузка…</div>';
 
   const profiles = await listProfiles();
-  const rows = [];
+
+  // Группируем по человеку
+  const byPerson = [];
   profiles.forEach(p=>{
-    if(myHandle && p.handle === myHandle) return; // себя не показываем
-    (p.items||[]).forEach(it=>{
-      if(it && it.status === activeStatus()) rows.push({ p, item: it });
-    });
+    if(myHandle && p.handle === myHandle) return;
+    const items = (p.items||[]).filter(it=>it && it.status===activeStatus());
+    if(items.length) byPerson.push({ p, items });
   });
+
+  // Round-robin сортировка: у кого меньше активных — идёт первым (честнее)
+  byPerson.sort((a,b)=>a.items.length - b.items.length);
+
+  // Плоский кэш для ставок
+  const rows = [];
+  byPerson.forEach(({p, items})=>items.forEach(item=>rows.push({p, item})));
   activityRows = rows;
 
   let potByItem = {};
@@ -1314,44 +1348,55 @@ async function loadFriendsActivity(){
       potByItem[b.item_id].count++; potByItem[b.item_id].total += b.amount;
       potByItem[b.item_id].bets.push(b);
     });
-  }catch(e){ console.error('load bets pot failed', e); }
+  }catch(e){}
 
-  if(rows.length === 0){
+  if(byPerson.length === 0){
     listEl.innerHTML = `<div class="activity-empty mono">Пока никто из друзей ничего не ${verbSingle}.</div>`;
   } else {
-    listEl.innerHTML = rows.map(({p, item}, idx)=>{
-      const pot = potByItem[item.id];
-      const potHTML = pot ? `
-        <div class="activity-pot mono" data-toggle="${idx}">🎲 ${pot.count} · ${pot.total} 🟡 <span class="pot-arrow">▾</span></div>
-        <div class="bet-list" id="betlist-${idx}" style="display:none">
-          ${pot.bets.map(b=>`<div class="bet-row"><b>${esc(b.bettor_name||b.bettor_handle)}</b> — ${b.amount} 🟡<span class="bet-note">${esc(b.note||'')}</span></div>`).join('')}
-        </div>` : '';
-      return `
-        <div class="activity-block">
-          <div class="activity-item">
-            <div class="activity-avatar">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
-            <div class="activity-info">
-              <div class="activity-name">${esc(p.name||p.handle)}</div>
-              <div class="activity-game">${esc(item.title)}</div>
-            </div>
-            <button class="bet-btn" data-idx="${idx}" title="Поставить Добрикоин">🎲</button>
+    listEl.innerHTML = byPerson.map(({p, items})=>{
+      const cards = items.map(item=>{
+        const rowIdx = rows.findIndex(r=>r.p.handle===p.handle && r.item.id===item.id);
+        const pot = potByItem[item.id];
+        const potBadge = pot ? `<div class="act-pot-badge">🎲 ${pot.total}🟡</div>` : '';
+        const cover = item.cover
+          ? `<img class="act-card-cover" src="${esc(item.cover)}" alt="" onerror="this.style.display='none'">`
+          : `<div class="act-card-nocover">${domain==='games'?'🎮':'🎬'}</div>`;
+        return `<div class="act-card" data-idx="${rowIdx}">
+          ${cover}
+          <div class="act-card-body">
+            <div class="act-card-title">${esc(item.title)}</div>
+            ${item.genre?`<div class="act-card-genre">${esc(item.genre)}</div>`:''}
+            ${potBadge}
           </div>
-          ${potHTML}
+          <button class="act-bet-btn" data-idx="${rowIdx}" title="Поставить Добрикоин">🎲</button>
         </div>`;
+      }).join('');
+
+      return `<div class="act-person">
+        <div class="act-person-head">
+          <div class="activity-avatar act-av-sm">${esc(p.avatar||(domain==='games'?'🎮':'🎬'))}</div>
+          <span class="act-person-name">${esc(p.name||p.handle)}</span>
+          <span class="act-person-cnt">${items.length}</span>
+        </div>
+        <div class="act-hscroll">${cards}</div>
+      </div>`;
     }).join('');
-    listEl.querySelectorAll('.bet-btn').forEach(btn=>{
-      btn.addEventListener('click', ()=>{
-        const { p, item } = activityRows[+btn.dataset.idx];
-        openBetModal(p, item);
+
+    listEl.querySelectorAll('.act-bet-btn').forEach(btn=>{
+      btn.addEventListener('click', e=>{
+        e.stopPropagation();
+        const { p, item } = activityRows[+btn.dataset.idx]||{};
+        if(p && item) openBetModal(p, item);
       });
     });
-    listEl.querySelectorAll('.activity-pot[data-toggle]').forEach(el=>{
-      el.addEventListener('click', ()=>{
-        const listBox = document.getElementById('betlist-'+el.dataset.toggle);
-        if(!listBox) return;
-        const open = listBox.style.display !== 'none';
-        listBox.style.display = open ? 'none' : 'block';
-        const arrow = el.querySelector('.pot-arrow'); if(arrow) arrow.textContent = open ? '▾' : '▴';
+    listEl.querySelectorAll('.act-card').forEach(card=>{
+      card.addEventListener('click', ()=>{
+        const { p, item } = activityRows[+card.dataset.idx]||{};
+        if(p && item){
+          const list = p.items||[];
+          list.__owner = p.handle;
+          openDetail(item.id, list, true);
+        }
       });
     });
   }
