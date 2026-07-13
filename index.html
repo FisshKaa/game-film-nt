@@ -3419,10 +3419,12 @@ function openCollectionForm(editColl){
     <div class="cover-area">
       <input type="text" id="collCoverUrl" placeholder="Вставь ссылку на картинку или GIF…" value="${collCover&&!collCover.startsWith('data:')?esc(collCover):''}">
       <div class="cover-btns">
+        <button type="button" class="btn ghost sm" id="collAutoBtn">🔄 Подобрать</button>
         <button type="button" class="btn ghost sm" id="collUploadBtn">Загрузить файл</button>
         <button type="button" class="btn ghost sm" id="collClearCover">Убрать</button>
       </div>
     </div>
+    <div class="cover-opts" id="collOptsBox" hidden></div>
     <input type="file" id="collFileInp" accept="image/*" style="display:none">
     <label>Общий обзор на серию</label>
     <textarea id="collReview" placeholder="Впечатления от серии в целом…" style="min-height:90px">${isEdit?esc(editColl.review||''):''}</textarea>
@@ -3445,6 +3447,47 @@ function openCollectionForm(editColl){
       : 'нет обложки';
   }
   collUrlInp.addEventListener('input', ()=>{ collCover = collUrlInp.value.trim(); drawCollPrev(); });
+  const collOptsBox = document.getElementById('collOptsBox');
+  document.getElementById('collAutoBtn').addEventListener('click', async (e)=>{
+    const t = document.getElementById('collTitle').value.trim();
+    if(!t){ collPrev.textContent = 'сначала впиши название'; return; }
+    const btn = e.currentTarget; const old = btn.textContent;
+    btn.disabled = true; btn.textContent = '…';
+    collOptsBox.hidden = false; collOptsBox.innerHTML = '<div class="cover-opt-empty">ищу варианты…</div>';
+    let opts = [];
+    try{
+      if(domain === 'movies'){
+        const [tmdbOpts, wikiOpts] = await Promise.all([
+          fetchMovieOptions(t).catch(()=>[]),
+          fetchGameOptions(t).catch(()=>[])
+        ]);
+        opts = [...tmdbOpts, ...wikiOpts];
+      } else {
+        opts = await fetchGameOptions(t);
+      }
+    }catch(err){}
+    if(!opts.length){
+      collOptsBox.innerHTML = '<div class="cover-opt-empty">Ничего не нашлось — впиши название точнее или задай обложку вручную.</div>';
+    } else {
+      collOptsBox.innerHTML = opts.map((o,i)=>{
+        const cap = [o.title, o.year].filter(Boolean).join(' · ');
+        const srcTag = (domain==='movies' && o.source) ? (o.source==='wiki' ? '📖 ' : '🎬 ') : '';
+        return `<div class="cover-opt" data-i="${i}"><img src="${esc(o.thumb||o.cover)}" alt="" loading="lazy"
+          onerror="this.parentNode.style.display='none'"><div class="co-cap">${srcTag}${esc(cap)||'—'}</div></div>`;
+      }).join('');
+      collOptsBox.querySelectorAll('.cover-opt').forEach(el=>{
+        el.addEventListener('click', ()=>{
+          const o = opts[+el.dataset.i];
+          collCover = o.cover;
+          collUrlInp.value = '';
+          collOptsBox.querySelectorAll('.cover-opt').forEach(x=>x.classList.remove('sel'));
+          el.classList.add('sel');
+          drawCollPrev();
+        });
+      });
+    }
+    btn.disabled = false; btn.textContent = old;
+  });
   document.getElementById('collUploadBtn').addEventListener('click', ()=>collFileInp.click());
   document.getElementById('collClearCover').addEventListener('click', ()=>{ collCover=''; collUrlInp.value=''; drawCollPrev(); });
   collFileInp.addEventListener('change', async ()=>{
