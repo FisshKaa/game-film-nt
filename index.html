@@ -15,6 +15,13 @@
     --radius:16px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
+  /* Глобальный скроллбар */
+  *{scrollbar-width:thin;scrollbar-color:var(--accent-dim) var(--ink2)}
+  *::-webkit-scrollbar{width:5px;height:5px}
+  *::-webkit-scrollbar-track{background:var(--ink2);border-radius:99px}
+  *::-webkit-scrollbar-thumb{background:var(--accent-dim);border-radius:99px}
+  *::-webkit-scrollbar-thumb:hover{background:var(--accent)}
+  *::-webkit-scrollbar-corner{background:var(--ink2)}
   html{-webkit-text-size-adjust:100%}
   body{
     background:
