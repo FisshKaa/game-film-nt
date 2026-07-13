@@ -2285,9 +2285,9 @@ function openFriendProfile(p, init){
       renderCollections(boardEl, fColls, true);
       // Реакции на коллекции
       loadBoardReactions(boardEl, p.handle);
-      // Открытие деталей коллекции с items друга
+      // Перепривязываем клики: открываем детали с games=list (для коллажа из обложек)
       boardEl.querySelectorAll('.coll-card').forEach(card=>{
-        card.replaceWith(card.cloneNode(true)); // убираем старые листенеры
+        card.replaceWith(card.cloneNode(true));
       });
       boardEl.querySelectorAll('.coll-card').forEach(card=>{
         card.addEventListener('click', ()=>{
@@ -3337,7 +3337,16 @@ function renderCollections(el, colls, readonly){
     el.innerHTML = `<div class="empty-all" style="padding:28px 20px"><b>Пока нет коллекций</b>${readonly?'У этого пользователя нет коллекций.':'Собери серию или подборку — нажми «+ Новая коллекция».'}</div>`;
     return;
   }
-  el.innerHTML = `<div class="coll-grid">${colls.map(c=>collCardHTML(c,readonly)).join('')}</div>`;
+  el.innerHTML = `
+    <input type="text" class="search" id="collSearch" placeholder="Поиск по названию коллекции…" autocomplete="off" style="margin-bottom:12px">
+    <div class="coll-grid" id="collGrid">${colls.map(c=>collCardHTML(c,readonly)).join('')}</div>`;
+  document.getElementById('collSearch').addEventListener('input', function(){
+    const q = this.value.trim().toLowerCase();
+    el.querySelectorAll('.coll-card').forEach((card, i)=>{
+      const title = colls[i] ? colls[i].title.toLowerCase() : '';
+      card.style.display = (!q || title.includes(q)) ? '' : 'none';
+    });
+  });
   el.querySelectorAll('.coll-card').forEach(card=>{
     card.addEventListener('click', ()=>{
       const coll = colls.find(c=>c.id===card.dataset.collId);
