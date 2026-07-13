@@ -1729,6 +1729,7 @@ async function loadRecentCollections(){
   const entries = [];
   profiles.forEach(p=>{
     if(myHandle && p.handle === myHandle) return;
+    if(p.domain !== domain) return;  // только текущий домен
     (p.collections||[]).forEach(c=>{ if(c && c.title) entries.push({ p, coll:c }); });
   });
   entries.sort((a,b)=>(b.coll.created||0)-(a.coll.created||0));
