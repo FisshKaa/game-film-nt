@@ -4556,11 +4556,10 @@ function stockBigChart(prices, W, H){
   }
   const min = Math.min(...prices), max = Math.max(...prices);
   const range = max - min;
-  const pad = 16;
+  const pad = 4;
   const pts = prices.map((p,i)=>{
     const x = pad + i*(W-pad*2)/(prices.length-1);
-    // Если все цены одинаковые — рисуем линию по центру
-    const y = range === 0 ? H/2 : H - pad - (p-min)/range*(H-pad*2);
+    const y = range === 0 ? H/2 : H - pad - (p-min)/range*(H-pad*2-pad);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
   const fillPts = `${pad},${H-pad} ${pts} ${(W-pad).toFixed(1)},${H-pad}`;
