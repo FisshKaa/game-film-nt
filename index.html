@@ -2328,7 +2328,7 @@ function wireMain(){
   const pubBtn = document.getElementById('publishBtn');
   if(pubBtn) pubBtn.addEventListener('click', openPublish);
   const bankBtn = document.getElementById('bankBtn');
-  if(bankBtn) bankBtn.addEventListener('click', openBank);
+  if(bankBtn) bankBtn.addEventListener('click', ()=>openBank('stock'));
   const casinoBtn = document.getElementById('casinoBtn');
   if(casinoBtn) casinoBtn.addEventListener('click', openCasino);
   const shopBtn = document.getElementById('shopBtn');
@@ -4542,7 +4542,18 @@ function stockMiniChart(prices, W, H){
 
 // Большой график для детального просмотра
 function stockBigChart(prices, W, H){
-  if(!prices || prices.length < 2) return '';
+  if(!prices || prices.length < 1) return '';
+  // Если только одна точка — показываем горизонтальную линию
+  if(prices.length < 3){
+    const price = prices[prices.length-1];
+    const pad = 16;
+    const y = H/2;
+    return `<svg viewBox="0 0 ${W} ${H}" class="stock-big-chart">
+      <line x1="${pad}" y1="${y}" x2="${W-pad}" y2="${y}" stroke="#f5b942" stroke-width="2" stroke-dasharray="5,5"/>
+      <text x="${W/2}" y="${H/2-8}" font-size="11" fill="#928fab" text-anchor="middle">Мало данных — цена формируется</text>
+      <text x="${W/2}" y="${H/2+14}" font-size="16" fill="#f5b942" text-anchor="middle" font-weight="800">${price}🟡</text>
+    </svg>`;
+  }
   const min = Math.min(...prices), max = Math.max(...prices);
   const range = max - min || 1;
   const pad = 16;
@@ -4554,6 +4565,8 @@ function stockBigChart(prices, W, H){
   const fillPts = `${pad},${H-pad} ${pts} ${(W-pad).toFixed(1)},${H-pad}`;
   const last = prices[prices.length-1], first = prices[0];
   const color = last >= first ? '#4ade80' : '#ff477e';
+  const change = last - first;
+  const changePct = ((last-first)/first*100).toFixed(1);
   return `<svg viewBox="0 0 ${W} ${H}" class="stock-big-chart">
     <defs>
       <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
@@ -4563,8 +4576,9 @@ function stockBigChart(prices, W, H){
     </defs>
     <polygon points="${fillPts}" fill="url(#sg)"/>
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
-    <text x="${pad}" y="${pad-3}" font-size="9" fill="#6b6882">${min}🟡</text>
-    <text x="${pad}" y="${H-3}" font-size="9" fill="#6b6882">${max}🟡</text>
+    <text x="${pad}" y="${pad+8}" font-size="9" fill="#6b6882">${max}🟡</text>
+    <text x="${pad}" y="${H-4}" font-size="9" fill="#6b6882">${min}🟡</text>
+    <text x="${W-pad}" y="${pad+8}" font-size="9" fill="${color}" text-anchor="end">${change>=0?'+':''}${change} (${changePct}%)</text>
   </svg>`;
 }
 
