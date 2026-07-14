@@ -4558,15 +4558,15 @@ function stockBigChart(prices, W, H){
   const range = max - min;
   const pad = 4;
   const pts = prices.map((p,i)=>{
-    const x = pad + i*(W-pad*2)/(prices.length-1);
-    const y = range === 0 ? H/2 : H - pad - (p-min)/range*(H-pad*2-pad);
+    const x = i*(W)/(prices.length-1);
+    const y = range === 0 ? H/2 : pad + (max-p)/range*(H-pad*2);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
-  const fillPts = `${pad},${H-pad} ${pts} ${(W-pad).toFixed(1)},${H-pad}`;
+  const fillPts = range===0 ? '' : `0,${H} ${pts} ${W},${H}`;
   const last = prices[prices.length-1], first = prices[0];
   const color = last >= first ? '#4ade80' : '#ff477e';
   const change = last - first;
-  const changePct = ((last-first)/first*100).toFixed(1);
+  const changePct = (first ? (last-first)/first*100 : 0).toFixed(1);
   return `<svg viewBox="0 0 ${W} ${H}" class="stock-big-chart">
     <defs>
       <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
@@ -4574,11 +4574,11 @@ function stockBigChart(prices, W, H){
         <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    <polygon points="${fillPts}" fill="url(#sg)"/>
+    ${fillPts ? `<polygon points="${fillPts}" fill="url(#sg)"/>` : ''}
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
-    <text x="${pad}" y="${pad+8}" font-size="9" fill="#6b6882">${max}🟡</text>
-    <text x="${pad}" y="${H-4}" font-size="9" fill="#6b6882">${min}🟡</text>
-    <text x="${W-pad}" y="${pad+8}" font-size="9" fill="${color}" text-anchor="end">${change>=0?'+':''}${change} (${changePct}%)</text>
+    ${range>0 ? `<text x="${pad+2}" y="10" font-size="9" fill="#6b6882">${max}🟡</text>
+    <text x="${pad+2}" y="${H-2}" font-size="9" fill="#6b6882">${min}🟡</text>` : ''}
+    <text x="${W-pad-2}" y="10" font-size="9" fill="${color}" text-anchor="end">${change>=0?'+':''}${change} (${changePct}%)</text>
   </svg>`;
 }
 
