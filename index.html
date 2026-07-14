@@ -261,7 +261,7 @@
   .stock-detail{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
   .stock-detail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
   .stock-big-chart{width:100%;height:110px;border-radius:10px;background:var(--ink2);
-    border:1px solid var(--line);display:block;margin-bottom:10px}
+    border:1px solid var(--line);display:block;margin-bottom:10px;overflow:hidden}
   .stock-my-pos{font-size:12px;color:var(--muted);margin-bottom:10px;
     background:var(--surface2);border-radius:8px;padding:6px 10px}
   .stock-trade-row{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -4577,7 +4577,7 @@ function stockBigChart(prices, W, H){
     </defs>
     ${fillPts ? `<polygon points="${fillPts}" fill="url(#sg)"/>` : ''}
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
-    ${range>0 ? `<text x="4" y="10" font-size="9" fill="#6b6882">${max}🟡</text>` : ''}
+    ${range>0 ? `` : ''}
     <text x="${W-4}" y="10" font-size="9" fill="${color}" text-anchor="end">${change>=0?'+':''}${change} (${changePct}%)</text>
   </svg>`;
 }
