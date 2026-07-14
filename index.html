@@ -260,8 +260,11 @@
   /* Детали акции */
   .stock-detail{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
   .stock-detail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
+  .stock-chart-wrap{position:relative;margin-bottom:10px}
+  .stock-chart-pct{position:absolute;top:6px;right:8px;font-family:'Space Mono',monospace;
+    font-size:11px;font-weight:700;z-index:2}
   .stock-big-chart{width:100%;height:110px;border-radius:10px;background:var(--ink2);
-    border:1px solid var(--line);display:block;margin-bottom:10px;overflow:hidden}
+    border:1px solid var(--line);display:block;overflow:hidden}
   .stock-my-pos{font-size:12px;color:var(--muted);margin-bottom:10px;
     background:var(--surface2);border-radius:8px;padding:6px 10px}
   .stock-trade-row{display:flex;gap:8px;align-items:center;margin-top:8px}
@@ -4570,18 +4573,18 @@ function stockBigChart(prices, W, H){
   const color = last >= first ? '#4ade80' : '#ff477e';
   const change = last - first;
   const changePct = (first ? (last-first)/first*100 : 0).toFixed(1);
-  return `<svg viewBox="0 0 ${W} ${H}" class="stock-big-chart" preserveAspectRatio="none" width="100%" height="110">
+  return `<div class="stock-chart-wrap">
+    <div class="stock-chart-pct" style="color:${color}">${change>=0?'+':''}${change} (${changePct}%)</div>
+    <svg viewBox="0 0 ${W} ${H}" class="stock-big-chart" preserveAspectRatio="none" width="100%" height="110">
     <defs>
       <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="${color}" stop-opacity=".6"/>
         <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
       </linearGradient>
     </defs>
-    ${`<polygon points="${fillPts}" fill="url(#sg)"/>`}
+    <polygon points="${fillPts}" fill="url(#sg)"/>
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
-    ${range>0 ? `` : ''}
-    <text x="${W-4}" y="10" font-size="9" fill="${color}" text-anchor="end">${change>=0?'+':''}${change} (${changePct}%)</text>
-  </svg>`;
+  </svg></div>`;
 }
 
 async function loadStockTab(){
