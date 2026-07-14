@@ -4956,7 +4956,7 @@ async function loadStockTab(){
       const it=items.find(x=>x.id===id);
       if(it){
         const list=Object.values(holdMap).map(h=>items.find(x=>x.id===h.item_id)).filter(Boolean);
-        const onBack = ()=>loadStockTab();
+        const onBack = ()=>openBank('stock');
         openDetail(id, list.length?list:items, true, onBack, '← Назад к бирже');
       }
     });
