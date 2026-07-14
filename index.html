@@ -201,7 +201,8 @@
     font-weight:700;color:#4ade80;font-size:15px}
   .cr-lose{background:#ff477e22;border:1px solid #ff477e55;border-radius:12px;padding:12px 16px;
     font-weight:700;color:#ff477e;font-size:15px}
-  /* Слот */
+  .coin-arena{display:flex;justify-content:center;align-items:center;height:90px;margin:12px 0}
+  .coin-face{font-size:52px;line-height:1;transition:font-size .2s;filter:drop-shadow(0 0 12px #f5b94288)}
   .casino-slot-reels{display:flex;gap:10px;justify-content:center;margin:14px 0}
   .csr{width:80px;height:80px;background:var(--surface2);border:2px solid var(--line);
     border-radius:12px;overflow:hidden;transition:border-color .3s}
@@ -4202,10 +4203,11 @@ async function openCasinoGame(type){
   if(type==='coin'){
     area.innerHTML = `
       <div class="casino-game">
-        <h4>🪙 Монетка</h4>
-        <p class="comm-note">«Пройдено» или «Заброшено»? Угадай — получи ×2.</p>
+        <h4>🎲 Монетка судьбы</h4>
+        <p class="comm-note">Угадай — «Пройдено» или «Заброшено»? Нажми кнопку, монетка закрутится и покажет результат.</p>
         ${betInput(coinBalance)}
         <div class="err" id="coinErr"></div>
+        <div class="coin-arena"><div class="coin-face" id="coinFace">🎲</div></div>
         <div class="casino-choices">
           <button class="btn casino-choice" data-pick="done">✅ Пройдено</button>
           <button class="btn casino-choice" data-pick="drop">❌ Заброшено</button>
@@ -4223,26 +4225,36 @@ async function openCasinoGame(type){
         if(bet>coinBalance){ err.textContent='Недостаточно монет'; return; }
         err.textContent='';
         area.querySelectorAll('.casino-choice').forEach(b=>b.disabled=true);
-        const pick = btn.dataset.pick; // 'done' | 'drop'
+        const pick = btn.dataset.pick;
         const roll = Math.random() < 0.5 ? 'done' : 'drop';
         const win = pick === roll;
         const tax = Math.ceil(bet*0.1);
-        await addCoins(-bet);
-        await addToCasinoBank(tax);
-        let payout = 0, resultTxt = '';
-        if(win){
-          payout = bet*2 - tax;
-          await addCoins(payout);
-          resultTxt = `<div class="cr-win">✅ Выпало «${roll==='done'?'Пройдено':'Заброшено'}»! +${payout}🟡</div>`;
-          toast.win(`🪙 Монетка: выиграл ${payout}🟡`);
-        } else {
-          resultTxt = `<div class="cr-lose">❌ Выпало «${roll==='done'?'Пройдено':'Заброшено'}». Увы!</div>`;
-          toast.info(`🪙 Монетка: проиграл ${bet}🟡`);
-        }
-        document.getElementById('coinResult').innerHTML = resultTxt +
-          `<button class="btn sm" id="coinAgain" style="margin-top:10px">Ещё раз</button>`;
-        document.getElementById('coinAgain').addEventListener('click',()=>openCasinoGame('coin'));
-        await logCasino('coin', bet, roll, payout);
+        // Анимация монетки
+        const face = document.getElementById('coinFace');
+        const frames = ['🎲','✅','❌','🎲','✅','❌'];
+        let f=0;
+        const anim = setInterval(()=>{ face.textContent=frames[f++%frames.length]; },110);
+        setTimeout(async()=>{
+          clearInterval(anim);
+          face.textContent = roll==='done' ? '✅' : '❌';
+          face.style.fontSize = '52px';
+          await addCoins(-bet);
+          await addToCasinoBank(tax);
+          let payout=0, resultTxt='';
+          if(win){
+            payout = bet*2 - tax;
+            await addCoins(payout);
+            resultTxt = `<div class="cr-win">🎉 Выпало «${roll==='done'?'Пройдено':'Заброшено'}»! Угадал! +${payout}🟡</div>`;
+            toast.win(`🎲 Монетка: выиграл ${payout}🟡`);
+          } else {
+            resultTxt = `<div class="cr-lose">😔 Выпало «${roll==='done'?'Пройдено':'Заброшено'}». Не угадал! -${bet}🟡</div>`;
+            toast.info(`🎲 Монетка: проиграл ${bet}🟡`);
+          }
+          document.getElementById('coinResult').innerHTML = resultTxt +
+            `<button class="btn sm" id="coinAgain" style="margin-top:10px">🎲 Ещё раз</button>`;
+          document.getElementById('coinAgain').addEventListener('click',()=>openCasinoGame('coin'));
+          await logCasino('coin', bet, roll, payout);
+        }, 1400);
       });
     });
   }
