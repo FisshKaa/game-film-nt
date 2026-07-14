@@ -311,7 +311,20 @@
   .bank-preview{margin:10px 0 6px}
 
   /* ---- Биржа ---- */
-  .stock-section-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+  .pf-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-bottom:4px}
+  .pf-card{background:var(--surface2);border:1px solid var(--line);border-radius:12px;
+    overflow:hidden;display:flex;flex-direction:column;transition:border-color .15s}
+  .pf-card:hover{border-color:var(--accent-dim)}
+  .pf-card-cover{width:100%;height:70px;object-fit:cover;display:block;flex-shrink:0}
+  .pf-card-nocover{width:100%;height:70px;display:grid;place-items:center;font-size:28px;background:var(--ink2);flex-shrink:0}
+  .pf-card-body{padding:8px;flex:1;display:flex;flex-direction:column;gap:4px}
+  .pf-card-title{font-size:12px;font-weight:700;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pf-card-price{font-size:10px;color:var(--muted);font-family:'Space Mono',monospace}
+  .pf-card-row{display:flex;justify-content:space-between;align-items:center}
+  .pf-card-shares{font-size:11px;color:var(--accent);font-family:'Space Mono',monospace;font-weight:700}
+  .pf-card-pnl{font-size:11px;font-family:'Space Mono',monospace;font-weight:700}
+  .pf-card-btns{display:flex;gap:4px;margin-top:4px}
+  .pf-buy,.pf-sell{flex:1;font-size:10px!important;padding:3px 4px!important}
     color:var(--muted);margin-bottom:8px}
   .stock-list{display:flex;flex-direction:column;gap:2px}
   .stock-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:10px;
@@ -4849,25 +4862,39 @@ async function loadStockTab(){
     return { it, cur, change, changePct, hist, trendTag };
   }).sort((a,b)=>Math.abs(b.changePct)-Math.abs(a.changePct));
 
-  // Мой портфель
+  // Мой портфель — карточки
   const portfolio = holdings.filter(h=>h.shares>0);
   let portfolioHTML = '';
   if(portfolio.length){
-    const rows = portfolio.map(h=>{
+    const totalVal = portfolio.reduce((s,h)=>(newPrices[h.item_id]||h.avg_price)*h.shares+s,0);
+    const cards = portfolio.map(h=>{
       const cur = newPrices[h.item_id]||h.avg_price;
       const val = cur * h.shares;
       const pnl = (cur - h.avg_price) * h.shares;
       const pnlColor = pnl>=0 ? '#4ade80' : '#ff477e';
-      return `<div class="stock-portfolio-row" data-id="${esc(h.item_id)}">
-        <span class="stock-p-title">${esc(h.item_title||h.item_id)}</span>
-        <span class="stock-p-shares">${h.shares} акц.</span>
-        <span class="stock-p-val">${val}🟡</span>
-        <span class="stock-p-pnl" style="color:${pnlColor}">${pnl>=0?'+':''}${pnl}🟡</span>
+      const hist = historyMap[h.item_id]||[];
+      const it = items.find(x=>x.id===h.item_id);
+      const cover = it&&it.cover ? `<img src="${esc(it.cover)}" class="pf-card-cover" alt="">` : `<div class="pf-card-nocover">${domain==='movies'?'🎬':'🎮'}</div>`;
+      return `<div class="pf-card" data-id="${esc(h.item_id)}">
+        ${cover}
+        <div class="pf-card-body">
+          <div class="pf-card-title">${esc(truncTitle(h.item_title||'',16))}</div>
+          <div class="pf-card-price">${cur}🟡 / акц.</div>
+          <div class="pf-card-row">
+            <span class="pf-card-shares">${h.shares} акц.</span>
+            <span class="pf-card-pnl" style="color:${pnlColor}">${pnl>=0?'+':''}${pnl}🟡</span>
+          </div>
+          ${stockMiniChart(hist,80,24)}
+          <div class="pf-card-btns">
+            <button class="btn sm pf-buy" data-id="${esc(h.item_id)}" data-price="${cur}" data-title="${esc(h.item_title||'')}">+ Ещё</button>
+            <button class="btn ghost sm pf-sell" data-id="${esc(h.item_id)}" data-shares="${h.shares}" data-price="${cur}" data-title="${esc(h.item_title||'')}">Продать</button>
+          </div>
+        </div>
       </div>`;
     }).join('');
-    const totalVal = portfolio.reduce((s,h)=>(newPrices[h.item_id]||h.avg_price)*h.shares+s,0);
-    portfolioHTML = `<div class="stock-section-title">📂 Мой портфель · ${totalVal}🟡</div>
-      <div class="stock-portfolio">${rows}</div>`;
+    portfolioHTML = `
+      <div class="stock-section-title">📂 Мой портфель · ${totalVal}🟡</div>
+      <div class="pf-grid">${cards}</div>`;
   }
 
   // Список акций
@@ -4901,6 +4928,27 @@ async function loadStockTab(){
     <div class="stock-list" id="stockList">${listHTML}</div>
     <div id="stockDetail"></div>`;
 
+  el.querySelectorAll('.pf-buy').forEach(btn=>{
+    btn.addEventListener('click', e=>{ e.stopPropagation();
+      const id=btn.dataset.id, price=parseInt(btn.dataset.price), title=btn.dataset.title;
+      openStockDetail(id, title, price, historyMap[id]||[], holdMap[id], holdMap, newPrices, holdings);
+    });
+  });
+  el.querySelectorAll('.pf-sell').forEach(btn=>{
+    btn.addEventListener('click', async e=>{ e.stopPropagation();
+      const id=btn.dataset.id, price=parseInt(btn.dataset.price), shares=parseInt(btn.dataset.shares), title=btn.dataset.title;
+      if(!confirm(`Продать все ${shares} акц. «${title}» за ${shares*price}🟡?`)) return;
+      const revenue = shares * price;
+      await addCoins(revenue);
+      try{
+        await sb.from('stock_holdings').update({shares:0}).eq('id',`${domain}:${id}:${myHandle}`);
+        const h = holdMap[id];
+        const profit = h ? (price-h.avg_price)*shares : 0;
+        toast.coin(`📉 Продано ${shares} акц. «${title}» · ${revenue}🟡 · P&L ${profit>=0?'+':''}${profit}🟡`);
+        loadStockTab();
+      }catch(e2){ await addCoins(-revenue); }
+    });
+  });
   el.querySelectorAll('.stock-row').forEach(row=>{
     row.addEventListener('click', ()=>{
       const id = row.dataset.id;
