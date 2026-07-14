@@ -4312,13 +4312,22 @@ async function openCasino(){
 
 function betInput(max){
   return `<div class="casino-bet-row">
-    <span class="casino-bal">У тебя: ${coinBalance}🟡</span>
+    <span class="casino-bal" id="casinoBal">У тебя: ${coinBalance}🟡</span>
     <input type="number" class="casino-bet-inp" id="casinoBet" min="1" max="${max}" value="${Math.min(10,max)||1}" placeholder="Ставка">
     <div class="casino-quick">
       ${[10,50,100,500].filter(v=>v<=coinBalance).map(v=>`<button class="btn ghost sm casino-q" data-v="${v}">${v}</button>`).join('')}
       <button class="btn ghost sm casino-q" data-v="${coinBalance}">Всё</button>
     </div>
   </div>`;
+}
+
+// Обновляет баланс и банк в UI казино после транзакции
+async function refreshCasinoUI(){
+  // Баланс
+  document.querySelectorAll('.casino-bal').forEach(el=>{ el.textContent = `У тебя: ${coinBalance}🟡`; });
+  // Общий банк в шапке
+  const jackpotEl = document.getElementById('casinoJackpot');
+  if(jackpotEl){ const j = await getCasinoBank(); jackpotEl.textContent = j+' 🟡'; }
 }
 
 // --- Игры ---
@@ -4392,6 +4401,7 @@ async function openCasinoGame(type){
             `<button class="btn sm" id="coinAgain" style="margin-top:10px">🎲 Ещё раз</button>`;
           document.getElementById('coinAgain').addEventListener('click',()=>openCasinoGame('coin'));
           await logCasino('coin', bet, roll, payout);
+          refreshCasinoUI();
         }, 1800);
       });
     });
@@ -4471,6 +4481,7 @@ async function openCasinoGame(type){
         if(bet>coinBalance){err.textContent='Недостаточно монет';return;}
         const tax = Math.ceil(bet*0.1);
         await addCoins(-bet); await addToCasinoBank(tax);
+        refreshCasinoUI();
         currentBet=bet; streak=0; multiplier=1;
         currentItem = pick();
         renderHL('guess');
@@ -4487,6 +4498,7 @@ async function openCasinoGame(type){
         await addCoins(payout);
         await logCasino('highlow', currentBet, 'cashout_x'+multiplier, payout);
         toast.win('📈 Забрал '+payout+'🟡 (×'+multiplier+')');
+        refreshCasinoUI();
         document.getElementById('hlPhase').innerHTML =
           '<div class="cr-win">💸 Забрал '+payout+'🟡!</div>' +
           '<button class="btn sm" id="hlAgain" style="margin-top:10px">Ещё раз</button>';
@@ -4517,6 +4529,7 @@ async function openCasinoGame(type){
           } else {
             await logCasino('highlow', currentBet, 'lose_x'+multiplier, 0);
             toast.info('📈 Серия прервана на ×'+multiplier);
+            refreshCasinoUI();
             document.getElementById('hlPhase').innerHTML =
               '<div class="cr-lose">❌ '+cur.score.toFixed(1)+' vs '+next.score.toFixed(1)+' — Проиграл '+currentBet+'🟡</div>'+
               '<button class="btn sm" id="hlAgain" style="margin-top:10px">Ещё раз</button>';
@@ -4647,6 +4660,7 @@ async function openCasinoGame(type){
         await logCasino('slot', bet, allSame?'jackpot':twoSame?'two':'none', payout);
         document.getElementById('slotResult').innerHTML = resultHTML;
         spinBtn.disabled=false;
+        refreshCasinoUI();
       }, 1500);
     });
   }
