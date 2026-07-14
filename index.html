@@ -326,6 +326,12 @@
   .pf-card-btns{display:flex;gap:4px;margin-top:4px}
   .pf-buy,.pf-sell{flex:1;font-size:10px!important;padding:3px 4px!important}
     color:var(--muted);margin-bottom:8px}
+  .stock-section-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:8px}
+  /* Двухколоночный layout биржи */
+  .stock-layout{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  .stock-left,.stock-right{min-width:0}
+  .stock-right{display:flex;flex-direction:column;gap:12px}
+  .stock-detail{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:12px}
   .stock-list{display:flex;flex-direction:column;gap:2px}
   .stock-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:10px;
     cursor:pointer;transition:background .12s;min-width:0;overflow:hidden}
@@ -783,6 +789,7 @@
   .modal.fp-modal{position:relative;max-width:1040px}
   .modal.fp-modal > *{position:relative;z-index:2}
   .modal.fp-modal > .close{z-index:10}
+  .modal.bank-modal{max-width:900px}
   .modal-back{margin-bottom:16px}
   .kp-link{display:inline-flex;align-items:center;gap:6px;margin-top:16px;font-size:13.5px;font-weight:600;
     color:var(--accent);text-decoration:none;border:1px solid var(--accent-dim);border-radius:10px;padding:9px 14px;
@@ -4923,10 +4930,16 @@ async function loadStockTab(){
   }).join('');
 
   el.innerHTML = `
-    ${portfolioHTML}
-    <div class="stock-section-title" style="margin-top:${portfolio.length?'14px':'0'}">📊 Торги · топ-15</div>
-    <div class="stock-list" id="stockList">${listHTML}</div>
-    <div id="stockDetail"></div>`;
+    <div class="stock-layout">
+      <div class="stock-left">
+        <div class="stock-section-title">📊 Торги · топ-15</div>
+        <div class="stock-list" id="stockList">${listHTML}</div>
+      </div>
+      <div class="stock-right">
+        ${portfolioHTML || '<div class="stock-section-title">📂 Портфель пуст</div><div class="activity-empty mono" style="font-size:12px">Купи акции чтобы они появились здесь</div>'}
+        <div id="stockDetail"></div>
+      </div>
+    </div>`;
 
   el.querySelectorAll('.pf-buy').forEach(btn=>{
     btn.addEventListener('click', e=>{ e.stopPropagation();
@@ -4982,7 +4995,7 @@ function openStockDetail(itemId, title, price, hist, myHolding, holdMap, newPric
     <div class="stock-detail">
       <div class="stock-detail-head">
         <b>${esc(title)}</b>
-        <span class="stock-price" style="font-size:18px">${price}🟡 / акция</span>
+        <span class="stock-price" style="font-size:16px">${price}🟡 / акция</span>
       </div>
       ${stockBigChart(hist, 340, 110)}
       ${shares>0?`<div class="stock-my-pos">📂 У тебя: ${shares} акц. куплено по ${avgPrice}🟡 · сейчас ${curVal}🟡 · <span style="color:${pnl>=0?'#4ade80':'#ff477e'}">${pnl>=0?'+':''}${pnl}🟡</span></div>`:''}
@@ -5071,7 +5084,7 @@ async function openBank(initTab){
       <button class="btab ${initTab==='deposit'?'active':''}" data-tab="deposit">💰 Вклад</button>
       <button class="btab ${initTab==='stock'?'active':''}" data-tab="stock">📈 Биржа</button>
     </div>
-    <div id="bankTabContent"><div class="bank-loading mono">Загружаю…</div></div>`);
+    <div id="bankTabContent"><div class="bank-loading mono">Загружаю…</div></div>`, 'bank-modal');
 
   document.getElementById('bankTabs').querySelectorAll('.btab').forEach(b=>{
     b.addEventListener('click', ()=>{
