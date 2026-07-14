@@ -233,7 +233,7 @@
     color:var(--muted);margin-bottom:8px}
   .stock-list{display:flex;flex-direction:column;gap:2px}
   .stock-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:10px;
-    cursor:pointer;transition:background .12s}
+    cursor:pointer;transition:background .12s;min-width:0;overflow:hidden}
   .stock-row:hover{background:var(--surface2)}
   .stock-info{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
   .stock-cover{width:36px;height:36px;object-fit:cover;border-radius:7px;flex-shrink:0}
@@ -242,7 +242,7 @@
   .stock-meta{min-width:0}
   .stock-title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stock-my-shares{font-size:10px;color:var(--accent);font-family:'Space Mono',monospace}
-  .stock-mini-chart{display:block;flex-shrink:0}
+  .stock-mini-chart{display:block;flex-shrink:0;width:60px;height:28px}
   .stock-price-col{text-align:right;flex-shrink:0}
   .stock-price{font-family:'Space Mono',monospace;font-weight:700;font-size:13px}
   .stock-change{font-family:'Space Mono',monospace;font-size:10px}
@@ -260,7 +260,7 @@
   /* Детали акции */
   .stock-detail{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
   .stock-detail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
-  .stock-big-chart{width:100%;border-radius:10px;background:var(--ink2);
+  .stock-big-chart{width:100%;height:110px;border-radius:10px;background:var(--ink2);
     border:1px solid var(--line);display:block;margin-bottom:10px}
   .stock-my-pos{font-size:12px;color:var(--muted);margin-bottom:10px;
     background:var(--surface2);border-radius:8px;padding:6px 10px}
