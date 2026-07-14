@@ -242,6 +242,11 @@
   .stock-meta{min-width:0}
   .stock-title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .stock-my-shares{font-size:10px;color:var(--accent);font-family:'Space Mono',monospace}
+  .stock-trend{font-size:10px;padding:1px 6px;border-radius:20px;font-weight:700;white-space:nowrap}
+  .stock-trend.up{background:#4ade8022;color:#4ade80;border:1px solid #4ade8044}
+  .stock-trend.down{background:#ff477e22;color:#ff477e;border:1px solid #ff477e44}
+  .stock-trend.active{background:#f5b94222;color:#f5b942;border:1px solid #f5b94244}
+  .stock-trend.neutral{background:var(--surface2);color:var(--muted);border:1px solid var(--line)}
   .stock-mini-chart{display:block;flex-shrink:0;width:60px;height:28px}
   .stock-price-col{text-align:right;flex-shrink:0}
   .stock-price{font-family:'Space Mono',monospace;font-weight:700;font-size:13px}
@@ -4514,14 +4519,16 @@ function calcStockPrice(item, allProfiles, allReactions, allRlBets){
     if(['❤️','🔥','😂','😮','👏'].includes(r.emoji)) price += 5;
     if(['💩','🤮'].includes(r.emoji)) price -= 5;
   });
-  // Статусы у других пользователей
-  allProfiles.forEach(p=>{
-    const it = (p.items||[]).find(x=>x.id===item.id);
-    if(!it) return;
-    if(it.status === doneStatus()) price += 3;
-    if(it.status === droppedStatus()) price -= 3;
+  // Статусы у всех владельцев — влияют на цену
+  const owners = item._owners || [];
+  owners.forEach(o=>{
+    if(o.status === activeStatus())       price += 0;   // нейтрально
+    else if(o.status === doneStatus())    price += 15;  // пройдено — хорошо
+    else if(o.status === droppedStatus()) price -= 15;  // заброшено — плохо
+    else if(o.status === backlogStatuses()[0]) price -= 5;  // отложено
+    else if(o.status === backlogStatuses()[1]) price += 3;  // в планах
   });
-  // Ставки на рулетку — волатильность
+  // Ставки на рулетку
   const bets = allRlBets.filter(b=>b.item_id===item.id);
   price += bets.reduce((s,b)=>s+b.amount,0) / 10;
   return Math.max(1, Math.round(price));
@@ -4602,15 +4609,17 @@ async function loadStockTab(){
       .then(r=>r.data||[]) : Promise.resolve([])
   ]);
 
-  // Собираем все уникальные игры с оценкой
+  // Собираем все уникальные игры с оценкой от друзей
   const itemMap = {};
   profiles.forEach(p=>(p.items||[]).forEach(it=>{
-    if(it && it.id && typeof it.score==='number' && it.score>0 && !itemMap[it.id])
-      itemMap[it.id] = {...it};
+    if(it && it.id && typeof it.score==='number' && it.score>0){
+      if(!itemMap[it.id]) itemMap[it.id] = {...it, _owners:[]};
+      itemMap[it.id]._owners.push({handle:p.handle, status:it.status});
+    }
   }));
   const items = Object.values(itemMap);
   if(!items.length){
-    el.innerHTML = '<div class="activity-empty mono">Пока нет оценённых игр для торговли.</div>';
+    el.innerHTML = `<div class="activity-empty mono">Пока никто из друзей ничего не ${domain==='games'?'играет':'смотрит'} с оценкой.</div>`;
     return;
   }
 
@@ -4656,7 +4665,17 @@ async function loadStockTab(){
     const cur = newPrices[it.id];
     const change = prev ? cur - prev : 0;
     const changePct = prev ? ((cur-prev)/prev*100) : 0;
-    return { it, cur, change, changePct, hist };
+    // Определяем тренд по статусам владельцев
+    const owners = it._owners || [];
+    const hasActive  = owners.some(o=>o.status===activeStatus());
+    const hasDone    = owners.some(o=>o.status===doneStatus());
+    const hasDropped = owners.some(o=>o.status===droppedStatus());
+    let trendTag = '';
+    if(hasDone && !hasDropped)    trendTag = `<span class="stock-trend up">✅ Пройдено</span>`;
+    else if(hasDropped && !hasDone) trendTag = `<span class="stock-trend down">❌ Заброшено</span>`;
+    else if(hasDone && hasDropped)  trendTag = `<span class="stock-trend neutral">混 Смешанно</span>`;
+    else if(hasActive)              trendTag = `<span class="stock-trend active">▶ Играют</span>`;
+    return { it, cur, change, changePct, hist, trendTag };
   }).sort((a,b)=>Math.abs(b.changePct)-Math.abs(a.changePct));
 
   // Мой портфель
@@ -4681,7 +4700,7 @@ async function loadStockTab(){
   }
 
   // Список акций
-  const listHTML = sorted.slice(0,15).map(({it,cur,change,changePct,hist})=>{
+  const listHTML = sorted.slice(0,15).map(({it,cur,change,changePct,hist,trendTag})=>{
     const sign = change>=0?'+':'';
     const color = change>=0?'#4ade80':'#ff477e';
     const arrow = change>0?'▲':change<0?'▼':'—';
@@ -4691,7 +4710,10 @@ async function loadStockTab(){
         ${it.cover?`<img src="${esc(it.cover)}" class="stock-cover" alt="">`:`<div class="stock-nocover">${domain==='movies'?'🎬':'🎮'}</div>`}
         <div class="stock-meta">
           <div class="stock-title">${esc(truncTitle(it.title,20))}</div>
-          ${myH&&myH.shares>0?`<div class="stock-my-shares">${myH.shares} акц. по ${myH.avg_price}🟡</div>`:''}
+          <div style="display:flex;gap:4px;align-items:center;margin-top:2px">
+            ${trendTag}
+            ${myH&&myH.shares>0?`<span class="stock-my-shares">${myH.shares} акц.</span>`:''}
+          </div>
         </div>
       </div>
       ${stockMiniChart(hist,60,28)}
