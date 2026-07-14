@@ -354,7 +354,12 @@
     border:1px solid var(--line);display:block;overflow:hidden}
   .stock-my-pos{font-size:12px;color:var(--muted);margin-bottom:10px;
     background:var(--surface2);border-radius:8px;padding:6px 10px}
-  .stock-trade-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .stock-trade-block{background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px}
+  .stock-trade-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px}
+  .stock-trade-row{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+  .stock-trade-calc{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.5}
+  .stock-trade-calc b{color:var(--text)}
+  .stock-trade-btns{display:flex;gap:8px}
 
   /* ---- Toast уведомления ---- */
   #toastContainer{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:10px;pointer-events:none;max-width:340px}
@@ -4929,19 +4934,40 @@ function openStockDetail(itemId, title, price, hist, myHolding, holdMap, newPric
     <div class="stock-detail">
       <div class="stock-detail-head">
         <b>${esc(title)}</b>
-        <span class="stock-price" style="font-size:18px">${price}🟡</span>
+        <span class="stock-price" style="font-size:18px">${price}🟡 / акция</span>
       </div>
       ${stockBigChart(hist, 340, 110)}
-      ${shares>0?`<div class="stock-my-pos">У тебя: ${shares} акц. · куплено по ${avgPrice}🟡 · сейчас ${curVal}🟡 · <span style="color:${pnl>=0?'#4ade80':'#ff477e'}">${pnl>=0?'+':''}${pnl}🟡</span></div>`:''}
-      <div class="stock-trade-row">
-        <input type="number" id="stockAmt" min="1" value="1" placeholder="Кол-во акций" class="casino-bet-inp" style="width:100px">
-        <button class="btn" id="stockBuy">Купить</button>
-        ${shares>0?`<button class="btn ghost" id="stockSell">Продать</button>`:''}
+      ${shares>0?`<div class="stock-my-pos">📂 У тебя: ${shares} акц. куплено по ${avgPrice}🟡 · сейчас ${curVal}🟡 · <span style="color:${pnl>=0?'#4ade80':'#ff477e'}">${pnl>=0?'+':''}${pnl}🟡</span></div>`:''}
+      <div class="stock-trade-block">
+        <div class="stock-trade-label">Количество акций</div>
+        <div class="stock-trade-row">
+          <button class="btn ghost sm" id="stockMinus">−</button>
+          <input type="number" id="stockAmt" min="1" value="1" class="casino-bet-inp" style="width:80px;text-align:center">
+          <button class="btn ghost sm" id="stockPlus">+</button>
+        </div>
+        <div class="stock-trade-calc" id="stockCalc">
+          Итого: <b>${price}🟡</b> · у тебя ${coinBalance}🟡 · можно купить до <b>${Math.floor(coinBalance/price)}</b> акц.
+        </div>
+        <div class="stock-trade-btns">
+          <button class="btn" id="stockBuy" style="flex:1">Купить</button>
+          ${shares>0?`<button class="btn ghost" id="stockSell" style="flex:1">Продать (${shares} акц.)</button>`:''}
+        </div>
       </div>
       <div class="err" id="stockErr"></div>
     </div>`;
 
   const amtInp = det.querySelector('#stockAmt');
+  const calc = det.querySelector('#stockCalc');
+  function updateCalc(){
+    const amt = parseInt(amtInp.value)||1;
+    const total = amt * price;
+    const canBuy = Math.floor(coinBalance/price);
+    calc.innerHTML = `Итого: <b>${total}🟡</b> · у тебя ${coinBalance}🟡 · можно купить до <b>${canBuy}</b> акц.`;
+    calc.style.color = total > coinBalance ? '#ff477e' : 'var(--muted)';
+  }
+  amtInp.addEventListener('input', updateCalc);
+  det.querySelector('#stockMinus').addEventListener('click',()=>{ amtInp.value=Math.max(1,(parseInt(amtInp.value)||1)-1); updateCalc(); });
+  det.querySelector('#stockPlus').addEventListener('click',()=>{ amtInp.value=(parseInt(amtInp.value)||1)+1; updateCalc(); });
   det.querySelector('#stockBuy').addEventListener('click', async()=>{
     const amt = parseInt(amtInp.value)||0;
     const cost = amt * price;
