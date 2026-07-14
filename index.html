@@ -4893,7 +4893,7 @@ async function loadStockTab(){
           </div>
           ${stockMiniChart(hist,80,24)}
           <div class="pf-card-btns">
-            <button class="btn sm pf-buy" data-id="${esc(h.item_id)}" data-price="${cur}" data-title="${esc(h.item_title||'')}">+ Ещё</button>
+            <button class="btn sm pf-review" data-id="${esc(h.item_id)}" data-title="${esc(h.item_title||'')}">📖 Обзор</button>
             <button class="btn ghost sm pf-sell" data-id="${esc(h.item_id)}" data-shares="${h.shares}" data-price="${cur}" data-title="${esc(h.item_title||'')}">Продать</button>
           </div>
         </div>
@@ -4941,10 +4941,20 @@ async function loadStockTab(){
       </div>
     </div>`;
 
-  el.querySelectorAll('.pf-buy').forEach(btn=>{
+  el.querySelectorAll('.pf-card').forEach(card=>{
+    card.addEventListener('click', e=>{
+      if(e.target.closest('.pf-review,.pf-sell')) return;
+      const id=card.dataset.id;
+      const h=holdMap[id]; if(!h) return;
+      const price=newPrices[id]||h.avg_price;
+      openStockDetail(id, h.item_title||'', price, historyMap[id]||[], h, holdMap, newPrices, holdings);
+    });
+  });
+  el.querySelectorAll('.pf-review').forEach(btn=>{
     btn.addEventListener('click', e=>{ e.stopPropagation();
-      const id=btn.dataset.id, price=parseInt(btn.dataset.price), title=btn.dataset.title;
-      openStockDetail(id, title, price, historyMap[id]||[], holdMap[id], holdMap, newPrices, holdings);
+      const id=btn.dataset.id;
+      const it=items.find(x=>x.id===id);
+      if(it){ const list=Object.values(holdMap).map(h=>items.find(x=>x.id===h.item_id)).filter(Boolean); openDetail(id, list.length?list:items, true); }
     });
   });
   el.querySelectorAll('.pf-sell').forEach(btn=>{
