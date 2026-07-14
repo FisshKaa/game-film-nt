@@ -4556,13 +4556,14 @@ function stockBigChart(prices, W, H){
   }
   const min = Math.min(...prices), max = Math.max(...prices);
   const range = max - min;
-  const pad = 4;
+  const pad = 0;
+  const vpad = 4;
   const pts = prices.map((p,i)=>{
-    const x = pad + i*(W-pad*2)/(prices.length-1);
-    const y = range === 0 ? H/2 : pad + (max-p)/range*(H-pad*2);
+    const x = i*(W)/(prices.length-1);
+    const y = range === 0 ? H/2 : vpad + (max-p)/range*(H-vpad*2);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   }).join(' ');
-  const fillPts = range===0 ? '' : `${pad},${H} ${pts} ${(W-pad).toFixed(1)},${H}`;
+  const fillPts = range===0 ? '' : `0,${H} ${pts} ${W},${H}`;
   const last = prices[prices.length-1], first = prices[0];
   const color = last >= first ? '#4ade80' : '#ff477e';
   const change = last - first;
@@ -4576,9 +4577,8 @@ function stockBigChart(prices, W, H){
     </defs>
     ${fillPts ? `<polygon points="${fillPts}" fill="url(#sg)"/>` : ''}
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
-    ${range>0 ? `<text x="${pad+2}" y="10" font-size="9" fill="#6b6882">${max}🟡</text>
-    <text x="${pad+2}" y="${H-2}" font-size="9" fill="#6b6882">${min}🟡</text>` : ''}
-    <text x="${W-pad-2}" y="10" font-size="9" fill="${color}" text-anchor="end">${change>=0?'+':''}${change} (${changePct}%)</text>
+    ${range>0 ? `<text x="4" y="10" font-size="9" fill="#6b6882">${max}🟡</text>` : ''}
+    <text x="${W-4}" y="10" font-size="9" fill="${color}" text-anchor="end">${change>=0?'+':''}${change} (${changePct}%)</text>
   </svg>`;
 }
 
