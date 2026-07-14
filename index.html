@@ -4649,9 +4649,7 @@ async function openCasinoGame(type){
           toast.info('🎰 Нет совпадений');
         }
         await logCasino('slot', bet, allSame?'jackpot':twoSame?'two':'none', payout);
-        document.getElementById('slotResult').innerHTML = resultHTML +
-          `<button class="btn sm slot-spin-btn" id="slotAgain" style="margin-top:10px">🎰 Ещё раз</button>`;
-        document.getElementById('slotAgain').addEventListener('click',()=>{ clearInterval(lightAnim); openCasinoGame('slot'); });
+        document.getElementById('slotResult').innerHTML = resultHTML;
         spinBtn.disabled=false;
       }, 1500);
     });
