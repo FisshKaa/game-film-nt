@@ -168,6 +168,46 @@
   .slot-arrow{text-align:center;font-size:14px;color:var(--muted);margin-bottom:2px;line-height:1}
   .slot-col{display:flex;flex-direction:column;align-items:center}
 
+  /* ---- Казино ---- */
+  .casino-jackpot{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#2a1a0a,#3a2010);
+    border:1px solid #f5b94255;border-radius:12px;padding:10px 16px;margin-bottom:10px}
+  .cj-label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+  .cj-val{font-family:'Space Mono',monospace;font-weight:800;font-size:18px;color:#f5b942;margin-left:auto}
+  .casino-games{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:10px 0}
+  .cg-card{background:var(--surface2);border:1px solid var(--line);border-radius:14px;padding:14px 10px;
+    text-align:center;cursor:pointer;transition:border-color .15s,transform .15s}
+  .cg-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+  .cg-icon{font-size:28px;margin-bottom:6px}
+  .cg-name{font-weight:800;font-size:14px;margin-bottom:4px}
+  .cg-desc{font-size:11px;color:var(--muted);line-height:1.4}
+  .casino-game{margin-top:14px;border-top:1px solid var(--line);padding-top:14px}
+  .casino-game h4{font-family:'Bricolage Grotesque',sans-serif;font-weight:800;font-size:17px;margin-bottom:8px}
+  .casino-bet-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+  .casino-bal{font-size:12px;color:var(--muted2);font-family:'Space Mono',monospace;width:100%}
+  .casino-bet-inp{width:90px;background:var(--ink);border:1px solid var(--line);border-radius:9px;
+    color:var(--text);font-size:14px;padding:7px 10px;text-align:center;font-family:'Space Mono',monospace}
+  .casino-quick{display:flex;gap:5px;flex-wrap:wrap}
+  .casino-choices{display:flex;gap:10px;margin-top:10px}
+  .casino-choice{flex:1;padding:12px;font-size:15px;font-weight:700}
+  .casino-result{margin-top:12px}
+  .cr-win{background:#4ade8022;border:1px solid #4ade8055;border-radius:12px;padding:12px 16px;
+    font-weight:700;color:#4ade80;font-size:15px}
+  .cr-lose{background:#ff477e22;border:1px solid #ff477e55;border-radius:12px;padding:12px 16px;
+    font-weight:700;color:#ff477e;font-size:15px}
+  /* Слот */
+  .casino-slot-reels{display:flex;gap:10px;justify-content:center;margin:14px 0}
+  .csr{width:80px;height:80px;background:var(--surface2);border:2px solid var(--line);
+    border-radius:12px;overflow:hidden;transition:border-color .3s}
+  .csr-face{width:100%;height:100%;display:grid;place-items:center}
+  /* Выше/ниже */
+  .hl-card{background:var(--surface2);border:1px solid var(--line);border-radius:14px;
+    overflow:hidden;display:flex;gap:12px;align-items:center;padding:10px;margin:10px 0}
+  .hl-cover{width:56px;height:56px;object-fit:cover;border-radius:8px;flex-shrink:0}
+  .hl-nocover{width:56px;height:56px;display:grid;place-items:center;font-size:28px;
+    background:var(--ink2);border-radius:8px;flex-shrink:0}
+  .hl-title{font-weight:700;font-size:14px;flex:1}
+  .hl-score{font-family:'Space Mono',monospace;font-weight:800;font-size:20px;color:var(--accent)}
+
   /* ---- Банк Добрикоин ---- */
   .bank-loading{color:var(--muted2);font-size:13px;padding:10px 0}
   .bank-active{margin-top:4px}
@@ -2165,6 +2205,7 @@ function render(){
       </div>
       <div class="top-actions">
         ${myHandle?`<button class="btn ghost sm" id="shareLinkBtn" title="Скопировать прямую ссылку на профиль">🔗 Ссылка</button>`:''}
+        <button class="btn ghost sm" id="casinoBtn">🎰 Казино</button>
         <button class="btn ghost sm" id="bankBtn">🏦 Банк ${bankName[domain]} Добрий</button>
         <button class="btn ghost sm" id="shopBtn">🛒 Магазин</button>
       </div>
@@ -2242,6 +2283,8 @@ function wireMain(){
   if(pubBtn) pubBtn.addEventListener('click', openPublish);
   const bankBtn = document.getElementById('bankBtn');
   if(bankBtn) bankBtn.addEventListener('click', openBank);
+  const casinoBtn = document.getElementById('casinoBtn');
+  if(casinoBtn) casinoBtn.addEventListener('click', openCasino);
   const shopBtn = document.getElementById('shopBtn');
   if(shopBtn) shopBtn.addEventListener('click', openShop);
   const shareBtn = document.getElementById('shareLinkBtn');
@@ -4051,6 +4094,351 @@ function savingsChartSVG(amount, openedAt){
     <text x="${scaleX(30)}" y="${H-1}" font-size="9" fill="#6b6882" text-anchor="middle">30д</text>
     <text x="${W-PAD}" y="${PAD+9}" font-size="9" fill="#4ade80" text-anchor="end">+${(BANK_RATE*100).toFixed(1)}%</text>
   </svg>`;
+}
+
+/* ================================================================
+   КАЗИНО ДОБРИКОИН
+   ================================================================ */
+
+// --- Банк казино (общий джекпот) ---
+async function getCasinoBank(){
+  try{
+    const { data } = await sb.from('casino_bank').select('amount').eq('id','global').maybeSingle();
+    return data ? data.amount : 0;
+  }catch(e){ return 0; }
+}
+async function addToCasinoBank(delta){
+  try{
+    await sb.rpc('increment_casino_bank', { delta }) // попробуем RPC
+      .catch(async ()=>{
+        // Фолбэк: прочитаем и обновим
+        const { data } = await sb.from('casino_bank').select('amount').eq('id','global').maybeSingle();
+        const cur = data ? data.amount : 0;
+        await sb.from('casino_bank').update({ amount: Math.max(0, cur+delta) }).eq('id','global');
+      });
+  }catch(e){
+    try{
+      const { data } = await sb.from('casino_bank').select('amount').eq('id','global').maybeSingle();
+      const cur = data ? data.amount : 0;
+      await sb.from('casino_bank').update({ amount: Math.max(0, cur+delta) }).eq('id','global');
+    }catch(e2){}
+  }
+}
+async function logCasino(game, bet, result, payout){
+  if(!myHandle) return;
+  try{
+    await sb.from('casino_log').insert({
+      id: `${myHandle}:${Date.now()}`,
+      domain, player: myHandle, player_name: profile.name,
+      game, bet, result, payout, created_at: new Date().toISOString()
+    });
+  }catch(e){}
+}
+
+// --- Главная модалка казино ---
+async function openCasino(){
+  if(!myHandle){
+    showModal(`<button class="close" onclick="__close()">×</button>
+      <h3>🎰 Казино Добрикоин</h3>
+      <p class="comm-note">Опубликуй профиль чтобы играть.</p>`);
+    return;
+  }
+  const jackpot = await getCasinoBank();
+  showModal(`
+    <button class="close" onclick="__close()">×</button>
+    <h3>🎰 Казино Добрикоин</h3>
+    <div class="casino-jackpot">
+      <span class="cj-label">🏆 Общий банк</span>
+      <span class="cj-val" id="casinoJackpot">${jackpot} 🟡</span>
+    </div>
+    <p class="comm-note">10% каждой ставки идёт в общий банк казино. Выиграй джекпот в слоте!</p>
+    <div class="casino-games">
+      <div class="cg-card" id="cgSlot">
+        <div class="cg-icon">🎰</div>
+        <div class="cg-name">Слот</div>
+        <div class="cg-desc">Три одинаковых → джекпот ×10, два → ×2</div>
+      </div>
+      <div class="cg-card" id="cgHighLow">
+        <div class="cg-icon">📈</div>
+        <div class="cg-name">Выше / Ниже</div>
+        <div class="cg-desc">Угадывай оценки, множи выигрыш</div>
+      </div>
+      <div class="cg-card" id="cgCoin">
+        <div class="cg-icon">🪙</div>
+        <div class="cg-name">Монетка</div>
+        <div class="cg-desc">Пройдено или Заброшено — ×2</div>
+      </div>
+    </div>
+    <div id="casinoGameArea"></div>
+  `);
+  document.getElementById('cgSlot').addEventListener('click', ()=>openCasinoGame('slot'));
+  document.getElementById('cgHighLow').addEventListener('click', ()=>openCasinoGame('highlow'));
+  document.getElementById('cgCoin').addEventListener('click', ()=>openCasinoGame('coin'));
+}
+
+function betInput(max){
+  return `<div class="casino-bet-row">
+    <span class="casino-bal">У тебя: ${coinBalance}🟡</span>
+    <input type="number" class="casino-bet-inp" id="casinoBet" min="1" max="${max}" value="${Math.min(10,max)||1}" placeholder="Ставка">
+    <div class="casino-quick">
+      ${[10,50,100,500].filter(v=>v<=coinBalance).map(v=>`<button class="btn ghost sm casino-q" data-v="${v}">${v}</button>`).join('')}
+      <button class="btn ghost sm casino-q" data-v="${coinBalance}">Всё</button>
+    </div>
+  </div>`;
+}
+
+// --- Игры ---
+async function openCasinoGame(type){
+  const area = document.getElementById('casinoGameArea');
+  if(!area) return;
+
+  if(type==='coin'){
+    area.innerHTML = `
+      <div class="casino-game">
+        <h4>🪙 Монетка</h4>
+        <p class="comm-note">«Пройдено» или «Заброшено»? Угадай — получи ×2.</p>
+        ${betInput(coinBalance)}
+        <div class="err" id="coinErr"></div>
+        <div class="casino-choices">
+          <button class="btn casino-choice" data-pick="done" style="background:#4ade8022;border-color:#4ade80">✅ Пройдено</button>
+          <button class="btn casino-choice" data-pick="drop" style="background:#ff477e22;border-color:#ff477e">❌ Заброшено</button>
+        </div>
+        <div class="casino-result" id="coinResult"></div>
+      </div>`;
+    area.querySelectorAll('.casino-q').forEach(b=>{
+      b.addEventListener('click',()=>{ document.getElementById('casinoBet').value=b.dataset.v; });
+    });
+    area.querySelectorAll('.casino-choice').forEach(btn=>{
+      btn.addEventListener('click', async()=>{
+        const bet = parseInt(document.getElementById('casinoBet').value)||0;
+        const err = document.getElementById('coinErr');
+        if(bet<1){ err.textContent='Укажи ставку'; return; }
+        if(bet>coinBalance){ err.textContent='Недостаточно монет'; return; }
+        err.textContent='';
+        area.querySelectorAll('.casino-choice').forEach(b=>b.disabled=true);
+        const pick = btn.dataset.pick; // 'done' | 'drop'
+        const roll = Math.random() < 0.5 ? 'done' : 'drop';
+        const win = pick === roll;
+        const tax = Math.ceil(bet*0.1);
+        await addCoins(-bet);
+        await addToCasinoBank(tax);
+        let payout = 0, resultTxt = '';
+        if(win){
+          payout = bet*2 - tax;
+          await addCoins(payout);
+          resultTxt = `<div class="cr-win">✅ Выпало «${roll==='done'?'Пройдено':'Заброшено'}»! +${payout}🟡</div>`;
+          toast.win(`🪙 Монетка: выиграл ${payout}🟡`);
+        } else {
+          resultTxt = `<div class="cr-lose">❌ Выпало «${roll==='done'?'Пройдено':'Заброшено'}». Увы!</div>`;
+          toast.info(`🪙 Монетка: проиграл ${bet}🟡`);
+        }
+        document.getElementById('coinResult').innerHTML = resultTxt +
+          `<button class="btn sm" id="coinAgain" style="margin-top:10px">Ещё раз</button>`;
+        document.getElementById('coinAgain').addEventListener('click',()=>openCasinoGame('coin'));
+        await logCasino('coin', bet, roll, payout);
+      });
+    });
+  }
+
+  else if(type==='highlow'){
+    // Собираем все игры из профилей друзей с оценками
+    const profiles = await listProfiles();
+    const allItems = [];
+    profiles.forEach(p=>(p.items||[]).forEach(it=>{
+      if(it && typeof it.score==='number' && it.score>0) allItems.push({...it, owner:p.handle});
+    }));
+    if(allItems.length < 2){ area.innerHTML='<div class="comm-note" style="padding:16px">Недостаточно оценённых игр у друзей.</div>'; return; }
+
+    let streak = 0, multiplier = 1, currentBet = 0, currentItem = null;
+
+    function pick(){ return allItems[Math.floor(Math.random()*allItems.length)]; }
+    function render_hl(phase){ // 'bet'|'guess'|'result'
+      const ph = document.getElementById('hlPhase');
+      if(ph) ph.innerHTML = renderHLPhase(phase);
+    }
+
+    function renderHLPhase(phase){
+      if(phase==='bet') return `
+        <h4>📈 Выше / Ниже</h4>
+        <p class="comm-note">Угадывай — следующая оценка выше или ниже? Серия множит выигрыш: ×2, ×4, ×8…</p>
+        ${betInput(coinBalance)}
+        <div class="err" id="hlErr"></div>
+        <button class="btn" id="hlStart" style="width:100%;margin-top:8px">Начать</button>`;
+      if(phase==='guess'){
+        const next = pick();
+        currentItem = next;
+        return `
+        <h4>📈 Серия: ${streak} · Множитель: ×${multiplier}</h4>
+        <div class="hl-card">
+          ${next.cover?`<img src="${esc(next.cover)}" alt="" class="hl-cover">`:`<div class="hl-nocover">${domain==='movies'?'🎬':'🎮'}</div>`}
+          <div class="hl-title">${esc(next.title)}</div>
+          <div class="hl-score">?</div>
+        </div>
+        <p class="comm-note" style="text-align:center">Оценка у этого тайтла выше или ниже <b>${next.score.toFixed(1)}</b>?</p>
+        <div class="casino-choices">
+          <button class="btn casino-choice" data-dir="higher" style="background:#4ade8022;border-color:#4ade80">📈 Выше</button>
+          <button class="btn casino-choice" data-dir="lower" style="background:#ff477e22;border-color:#ff477e">📉 Ниже</button>
+        </div>
+        ${streak>0?`<button class="btn ghost" id="hlCashout" style="width:100%;margin-top:8px">💸 Забрать ${Math.round(currentBet*multiplier)}🟡</button>`:''}`;
+      }
+    }
+
+    area.innerHTML = `<div class="casino-game"><div id="hlPhase">${renderHLPhase('bet')}</div></div>`;
+    area.querySelectorAll('.casino-q').forEach(b=>{
+      b.addEventListener('click',()=>{ document.getElementById('casinoBet').value=b.dataset.v; });
+    });
+
+    area.querySelector('#hlStart').addEventListener('click', async()=>{
+      const bet = parseInt(document.getElementById('casinoBet').value)||0;
+      const err = document.getElementById('hlErr');
+      if(bet<1){err.textContent='Укажи ставку';return;}
+      if(bet>coinBalance){err.textContent='Недостаточно монет';return;}
+      const tax = Math.ceil(bet*0.1);
+      await addCoins(-bet);
+      await addToCasinoBank(tax);
+      currentBet = bet; streak=0; multiplier=1;
+      currentItem = pick();
+      document.getElementById('hlPhase').innerHTML = renderHLPhase('guess');
+      bindHLChoices();
+    });
+
+    function bindHLChoices(){
+      const cashout = document.getElementById('hlCashout');
+      if(cashout) cashout.addEventListener('click', async()=>{
+        const payout = Math.round(currentBet * multiplier);
+        await addCoins(payout);
+        await logCasino('highlow', currentBet, `win_cashout_x${multiplier}`, payout);
+        toast.win(`📈 Забрал ${payout}🟡 (×${multiplier})`);
+        document.getElementById('hlPhase').innerHTML = `<div class="cr-win">💸 Забрал ${payout}🟡!</div>
+          <button class="btn sm" onclick="openCasinoGame('highlow')" style="margin-top:10px">Ещё раз</button>`;
+        // Rebind после перерисовки
+        const again = document.querySelector('[onclick="openCasinoGame(\'highlow\')"]');
+        if(again){ again.removeAttribute('onclick'); again.addEventListener('click',()=>openCasinoGame('highlow')); }
+      });
+
+      area.querySelectorAll('.casino-choice').forEach(btn=>{
+        btn.addEventListener('click', async()=>{
+          area.querySelectorAll('.casino-choice').forEach(b=>b.disabled=true);
+          if(cashout) cashout.disabled=true;
+          const dir = btn.dataset.dir;
+          const next = pick();
+          const win = dir==='higher' ? next.score > currentItem.score : next.score < currentItem.score;
+          if(win){
+            streak++; multiplier*=2;
+            const msg = `<div class="cr-win">✅ ${currentItem.score.toFixed(1)} ${dir==='higher'?'<':'>'} ${next.score.toFixed(1)} · Серия ${streak} · ×${multiplier}</div>`;
+            document.getElementById('hlPhase').innerHTML = msg + renderHLPhase('guess');
+            bindHLChoices();
+          } else {
+            await logCasino('highlow', currentBet, `lose_x${multiplier}`, 0);
+            toast.info(`📈 Выше/ниже: серия прервана (×${multiplier})`);
+            document.getElementById('hlPhase').innerHTML = `
+              <div class="cr-lose">❌ ${currentItem.score.toFixed(1)} — следующий ${next.score.toFixed(1)}. Проиграл ${currentBet}🟡!</div>
+              <button class="btn sm" id="hlAgain" style="margin-top:10px">Ещё раз</button>`;
+            document.getElementById('hlAgain').addEventListener('click',()=>openCasinoGame('highlow'));
+          }
+        });
+      });
+    }
+  }
+
+  else if(type==='slot'){
+    const profiles = await listProfiles();
+    const allItems = [];
+    profiles.forEach(p=>(p.items||[]).forEach(it=>{ if(it && it.title) allItems.push(it); }));
+    if(allItems.length < 3){ area.innerHTML='<div class="comm-note" style="padding:16px">Мало игр у друзей для слота.</div>'; return; }
+
+    area.innerHTML = `<div class="casino-game">
+      <h4>🎰 Слот</h4>
+      <p class="comm-note">Три одинаковых → джекпот (весь банк казино + ×10 ставки). Два одинаковых → ×2. Нет → теряешь.</p>
+      <div class="casino-jackpot" style="margin:8px 0">
+        <span class="cj-label">🏆 Текущий банк</span>
+        <span class="cj-val" id="slotJackpot">загружаю…</span>
+      </div>
+      ${betInput(coinBalance)}
+      <div class="err" id="slotErr"></div>
+      <div class="casino-slot-reels" id="slotReels">
+        <div class="csr" id="csr0"><div class="csr-face">🎰</div></div>
+        <div class="csr" id="csr1"><div class="csr-face">🎰</div></div>
+        <div class="csr" id="csr2"><div class="csr-face">🎰</div></div>
+      </div>
+      <button class="btn" id="slotSpin" style="width:100%;margin-top:12px">🎰 Крутить</button>
+      <div class="casino-result" id="slotResult"></div>
+    </div>`;
+
+    getCasinoBank().then(j=>{ const el=document.getElementById('slotJackpot'); if(el) el.textContent=j+'🟡'; });
+    area.querySelectorAll('.casino-q').forEach(b=>{
+      b.addEventListener('click',()=>{ document.getElementById('casinoBet').value=b.dataset.v; });
+    });
+
+    document.getElementById('slotSpin').addEventListener('click', async()=>{
+      const bet = parseInt(document.getElementById('casinoBet').value)||0;
+      const err = document.getElementById('slotErr');
+      if(bet<1){err.textContent='Укажи ставку';return;}
+      if(bet>coinBalance){err.textContent='Недостаточно монет';return;}
+      err.textContent='';
+      document.getElementById('slotSpin').disabled=true;
+
+      // Анимация крутения
+      const reels = [0,1,2].map(i=>document.getElementById('csr'+i));
+      let tick=0;
+      const anim = setInterval(()=>{
+        reels.forEach(r=>{
+          const it = allItems[Math.floor(Math.random()*allItems.length)];
+          r.querySelector('.csr-face').innerHTML = it.cover
+            ? `<img src="${esc(it.cover)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`
+            : `<div style="font-size:28px;display:grid;place-items:center;height:100%">${domain==='movies'?'🎬':'🎮'}</div>`;
+        });
+        if(++tick>12) clearInterval(anim);
+      },80);
+
+      // Результат через 1.2сек
+      setTimeout(async()=>{
+        const picks = [0,1,2].map(()=>allItems[Math.floor(Math.random()*allItems.length)]);
+        reels.forEach((r,i)=>{
+          const it=picks[i];
+          r.querySelector('.csr-face').innerHTML = it.cover
+            ? `<img src="${esc(it.cover)}" style="width:100%;height:100%;object-fit:cover;border-radius:8px">`
+            : `<div style="font-size:28px;display:grid;place-items:center;height:100%">${domain==='movies'?'🎬':'🎮'}</div>`;
+        });
+
+        const tax = Math.ceil(bet*0.1);
+        await addCoins(-bet);
+        await addToCasinoBank(tax);
+        const jackpot = await getCasinoBank();
+        const slotJEl = document.getElementById('slotJackpot');
+        if(slotJEl) slotJEl.textContent = jackpot+'🟡';
+
+        // Проверка совпадений
+        const t = picks.map(p=>p.title);
+        const allSame = t[0]===t[1] && t[1]===t[2];
+        const twoSame = t[0]===t[1] || t[1]===t[2] || t[0]===t[2];
+        let payout=0, resultHTML='';
+
+        if(allSame){
+          // Джекпот!
+          payout = bet*10 + jackpot;
+          await addCoins(payout);
+          await addToCasinoBank(-jackpot); // обнуляем банк
+          launchConfetti();
+          resultHTML=`<div class="cr-win" style="font-size:18px">🏆 ДЖЕКПОТ! +${payout}🟡</div>`;
+          toast.win(`🎰🏆 ДЖЕКПОТ! Выиграл ${payout}🟡!`);
+        } else if(twoSame){
+          payout = bet*2 - tax;
+          await addCoins(payout);
+          resultHTML=`<div class="cr-win">🎰 Два совпадения! +${payout}🟡</div>`;
+          toast.win(`🎰 Слот: два совпадения +${payout}🟡`);
+        } else {
+          resultHTML=`<div class="cr-lose">🎰 Нет совпадений. Проиграл ${bet}🟡</div>`;
+          toast.info(`🎰 Слот: нет совпадений`);
+        }
+        await logCasino('slot', bet, allSame?'jackpot':twoSame?'two':'none', payout);
+        document.getElementById('slotResult').innerHTML = resultHTML +
+          `<button class="btn sm" id="slotAgain" style="margin-top:10px">Ещё раз</button>`;
+        document.getElementById('slotAgain').addEventListener('click',()=>openCasinoGame('slot'));
+        document.getElementById('slotSpin').disabled=false;
+      },1300);
+    });
+  }
 }
 
 async function openBank(){
