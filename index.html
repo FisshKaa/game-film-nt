@@ -4833,11 +4833,14 @@ async function loadStockTab(){
     const hasActive  = owners.some(o=>o.status===activeStatus());
     const hasDone    = owners.some(o=>o.status===doneStatus());
     const hasDropped = owners.some(o=>o.status===droppedStatus());
+    // Берём реальный текст статуса из данных
+    const doneLabel    = owners.find(o=>o.status===doneStatus())?.status    || doneStatus();
+    const droppedLabel = owners.find(o=>o.status===droppedStatus())?.status || droppedStatus();
     let trendTag = '';
-    if(hasDone && !hasDropped)    trendTag = `<span class="stock-trend up">✅ Пройдено</span>`;
-    else if(hasDropped && !hasDone) trendTag = `<span class="stock-trend down">❌ Заброшено</span>`;
-    else if(hasDone && hasDropped)  trendTag = `<span class="stock-trend neutral">混 Смешанно</span>`;
-    else if(hasActive)              trendTag = `<span class="stock-trend active">▶ Играют</span>`;
+    if(hasDone && !hasDropped)      trendTag = `<span class="stock-trend up">✅ ${esc(doneLabel)}</span>`;
+    else if(hasDropped && !hasDone) trendTag = `<span class="stock-trend down">❌ ${esc(droppedLabel)}</span>`;
+    else if(hasDone && hasDropped)  trendTag = `<span class="stock-trend neutral">↕ Смешанно</span>`;
+    else if(hasActive)              trendTag = `<span class="stock-trend active">▶ ${esc(activeStatus())}</span>`;
     return { it, cur, change, changePct, hist, trendTag };
   }).sort((a,b)=>Math.abs(b.changePct)-Math.abs(a.changePct));
 
