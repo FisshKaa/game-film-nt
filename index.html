@@ -228,6 +228,44 @@
   .bank-note{font-size:11.5px;color:var(--muted2);margin-top:7px;line-height:1.5}
   .bank-preview{margin:10px 0 6px}
 
+  /* ---- Биржа ---- */
+  .stock-section-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;
+    color:var(--muted);margin-bottom:8px}
+  .stock-list{display:flex;flex-direction:column;gap:2px}
+  .stock-row{display:flex;align-items:center;gap:10px;padding:8px 6px;border-radius:10px;
+    cursor:pointer;transition:background .12s}
+  .stock-row:hover{background:var(--surface2)}
+  .stock-info{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+  .stock-cover{width:36px;height:36px;object-fit:cover;border-radius:7px;flex-shrink:0}
+  .stock-nocover{width:36px;height:36px;border-radius:7px;background:var(--ink2);
+    display:grid;place-items:center;font-size:18px;flex-shrink:0}
+  .stock-meta{min-width:0}
+  .stock-title{font-weight:700;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stock-my-shares{font-size:10px;color:var(--accent);font-family:'Space Mono',monospace}
+  .stock-mini-chart{display:block;flex-shrink:0}
+  .stock-price-col{text-align:right;flex-shrink:0}
+  .stock-price{font-family:'Space Mono',monospace;font-weight:700;font-size:13px}
+  .stock-change{font-family:'Space Mono',monospace;font-size:10px}
+  /* Портфель */
+  .stock-portfolio{background:var(--surface2);border:1px solid var(--line);border-radius:12px;
+    padding:8px;margin-bottom:4px}
+  .stock-portfolio-row{display:flex;align-items:center;gap:8px;padding:6px 4px;
+    border-bottom:1px solid var(--line);cursor:pointer;border-radius:7px;transition:background .12s}
+  .stock-portfolio-row:last-child{border-bottom:none}
+  .stock-portfolio-row:hover{background:var(--surface)}
+  .stock-p-title{flex:1;font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stock-p-shares{font-size:11px;color:var(--muted);font-family:'Space Mono',monospace;flex-shrink:0}
+  .stock-p-val{font-family:'Space Mono',monospace;font-size:12px;flex-shrink:0}
+  .stock-p-pnl{font-family:'Space Mono',monospace;font-size:12px;font-weight:700;flex-shrink:0}
+  /* Детали акции */
+  .stock-detail{margin-top:14px;padding-top:14px;border-top:1px solid var(--line)}
+  .stock-detail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px}
+  .stock-big-chart{width:100%;border-radius:10px;background:var(--ink2);
+    border:1px solid var(--line);display:block;margin-bottom:10px}
+  .stock-my-pos{font-size:12px;color:var(--muted);margin-bottom:10px;
+    background:var(--surface2);border-radius:8px;padding:6px 10px}
+  .stock-trade-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+
   /* ---- Toast уведомления ---- */
   #toastContainer{position:fixed;bottom:24px;right:24px;z-index:999;display:flex;flex-direction:column;gap:10px;pointer-events:none;max-width:340px}
   .toast{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:14px;
@@ -4460,7 +4498,286 @@ async function openCasinoGame(type){
   }
 }
 
-async function openBank(){
+/* ================================================================
+   БИРЖА ДОБРИКОИН
+   ================================================================ */
+
+// Рассчитываем цену акции из реальных данных
+function calcStockPrice(item, allProfiles, allReactions, allRlBets){
+  let price = Math.round((item.score || 0) * 10);
+  // Реакции
+  const rx = allReactions.filter(r=>r.item_id===item.id);
+  rx.forEach(r=>{
+    if(['❤️','🔥','😂','😮','👏'].includes(r.emoji)) price += 5;
+    if(['💩','🤮'].includes(r.emoji)) price -= 5;
+  });
+  // Статусы у других пользователей
+  allProfiles.forEach(p=>{
+    const it = (p.items||[]).find(x=>x.id===item.id);
+    if(!it) return;
+    if(it.status === doneStatus()) price += 3;
+    if(it.status === droppedStatus()) price -= 3;
+  });
+  // Ставки на рулетку — волатильность
+  const bets = allRlBets.filter(b=>b.item_id===item.id);
+  price += bets.reduce((s,b)=>s+b.amount,0) / 10;
+  return Math.max(1, Math.round(price));
+}
+
+// SVG мини-график для акции
+function stockMiniChart(prices, W, H){
+  if(!prices || prices.length < 2) return '';
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = max - min || 1;
+  const pad = 3;
+  const pts = prices.map((p,i)=>{
+    const x = pad + i*(W-pad*2)/(prices.length-1);
+    const y = H - pad - (p-min)/range*(H-pad*2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const last = prices[prices.length-1], first = prices[0];
+  const color = last >= first ? '#4ade80' : '#ff477e';
+  return `<svg viewBox="0 0 ${W} ${H}" class="stock-mini-chart"><polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linejoin="round"/></svg>`;
+}
+
+// Большой график для детального просмотра
+function stockBigChart(prices, W, H){
+  if(!prices || prices.length < 2) return '';
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = max - min || 1;
+  const pad = 16;
+  const pts = prices.map((p,i)=>{
+    const x = pad + i*(W-pad*2)/(prices.length-1);
+    const y = H - pad - (p-min)/range*(H-pad*2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const fillPts = `${pad},${H-pad} ${pts} ${(W-pad).toFixed(1)},${H-pad}`;
+  const last = prices[prices.length-1], first = prices[0];
+  const color = last >= first ? '#4ade80' : '#ff477e';
+  return `<svg viewBox="0 0 ${W} ${H}" class="stock-big-chart">
+    <defs>
+      <linearGradient id="sg" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="${color}" stop-opacity=".3"/>
+        <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+      </linearGradient>
+    </defs>
+    <polygon points="${fillPts}" fill="url(#sg)"/>
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+    <text x="${pad}" y="${pad-3}" font-size="9" fill="#6b6882">${min}🟡</text>
+    <text x="${pad}" y="${H-3}" font-size="9" fill="#6b6882">${max}🟡</text>
+  </svg>`;
+}
+
+async function loadStockTab(){
+  const el = document.getElementById('bankTabContent');
+  el.innerHTML = '<div class="bank-loading mono">Загружаю биржу…</div>';
+
+  // Собираем данные
+  const [profiles, rxData, rlBetsData, priceHistory, holdings] = await Promise.all([
+    listProfiles(),
+    sb.from('reactions').select('item_id,emoji').eq('domain',domain).then(r=>r.data||[]),
+    sb.from('roulette_bets').select('item_id,amount').eq('domain',domain).eq('status','pending').then(r=>r.data||[]),
+    sb.from('stock_prices').select('item_id,item_title,price,created_at').eq('domain',domain)
+      .order('created_at',{ascending:true}).then(r=>r.data||[]),
+    myHandle ? sb.from('stock_holdings').select('*').eq('domain',domain).eq('owner',myHandle)
+      .then(r=>r.data||[]) : Promise.resolve([])
+  ]);
+
+  // Собираем все уникальные игры с оценкой
+  const itemMap = {};
+  profiles.forEach(p=>(p.items||[]).forEach(it=>{
+    if(it && it.id && typeof it.score==='number' && it.score>0 && !itemMap[it.id])
+      itemMap[it.id] = {...it};
+  }));
+  const items = Object.values(itemMap);
+  if(!items.length){
+    el.innerHTML = '<div class="activity-empty mono">Пока нет оценённых игр для торговли.</div>';
+    return;
+  }
+
+  // Считаем текущие цены и сохраняем новую точку
+  const now = Date.now();
+  const newPrices = {};
+  for(const item of items){
+    const price = calcStockPrice(item, profiles, rxData, rlBetsData);
+    newPrices[item.id] = price;
+  }
+
+  // Сохраняем новые цены в БД (батчем)
+  try{
+    const inserts = items.map(it=>({
+      id:`${domain}:${it.id}:${now}`,
+      domain, item_id:it.id, item_title:it.title,
+      price:newPrices[it.id]
+    }));
+    await sb.from('stock_prices').upsert(inserts);
+  }catch(e){}
+
+  // Группируем историю цен по item_id
+  const historyMap = {};
+  priceHistory.forEach(r=>{
+    if(!historyMap[r.item_id]) historyMap[r.item_id] = [];
+    historyMap[r.item_id].push(r.price);
+  });
+  // Добавляем текущие цены в историю
+  items.forEach(it=>{
+    if(!historyMap[it.id]) historyMap[it.id] = [];
+    historyMap[it.id].push(newPrices[it.id]);
+    if(historyMap[it.id].length > 20) historyMap[it.id] = historyMap[it.id].slice(-20);
+  });
+
+  // Моя позиция
+  const holdMap = {};
+  holdings.forEach(h=>{ holdMap[h.item_id] = h; });
+
+  // Сортируем: сначала с изменением, потом по цене
+  const sorted = items.map(it=>{
+    const hist = historyMap[it.id]||[];
+    const prev = hist.length>1 ? hist[hist.length-2] : hist[0];
+    const cur = newPrices[it.id];
+    const change = prev ? cur - prev : 0;
+    const changePct = prev ? ((cur-prev)/prev*100) : 0;
+    return { it, cur, change, changePct, hist };
+  }).sort((a,b)=>Math.abs(b.changePct)-Math.abs(a.changePct));
+
+  // Мой портфель
+  const portfolio = holdings.filter(h=>h.shares>0);
+  let portfolioHTML = '';
+  if(portfolio.length){
+    const rows = portfolio.map(h=>{
+      const cur = newPrices[h.item_id]||h.avg_price;
+      const val = cur * h.shares;
+      const pnl = (cur - h.avg_price) * h.shares;
+      const pnlColor = pnl>=0 ? '#4ade80' : '#ff477e';
+      return `<div class="stock-portfolio-row" data-id="${esc(h.item_id)}">
+        <span class="stock-p-title">${esc(h.item_title||h.item_id)}</span>
+        <span class="stock-p-shares">${h.shares} акц.</span>
+        <span class="stock-p-val">${val}🟡</span>
+        <span class="stock-p-pnl" style="color:${pnlColor}">${pnl>=0?'+':''}${pnl}🟡</span>
+      </div>`;
+    }).join('');
+    const totalVal = portfolio.reduce((s,h)=>(newPrices[h.item_id]||h.avg_price)*h.shares+s,0);
+    portfolioHTML = `<div class="stock-section-title">📂 Мой портфель · ${totalVal}🟡</div>
+      <div class="stock-portfolio">${rows}</div>`;
+  }
+
+  // Список акций
+  const listHTML = sorted.slice(0,15).map(({it,cur,change,changePct,hist})=>{
+    const sign = change>=0?'+':'';
+    const color = change>=0?'#4ade80':'#ff477e';
+    const arrow = change>0?'▲':change<0?'▼':'—';
+    const myH = holdMap[it.id];
+    return `<div class="stock-row" data-id="${esc(it.id)}" data-title="${esc(it.title)}" data-price="${cur}">
+      <div class="stock-info">
+        ${it.cover?`<img src="${esc(it.cover)}" class="stock-cover" alt="">`:`<div class="stock-nocover">${domain==='movies'?'🎬':'🎮'}</div>`}
+        <div class="stock-meta">
+          <div class="stock-title">${esc(truncTitle(it.title,20))}</div>
+          ${myH&&myH.shares>0?`<div class="stock-my-shares">${myH.shares} акц. по ${myH.avg_price}🟡</div>`:''}
+        </div>
+      </div>
+      ${stockMiniChart(hist,60,28)}
+      <div class="stock-price-col">
+        <div class="stock-price">${cur}🟡</div>
+        <div class="stock-change" style="color:${color}">${arrow} ${sign}${change} (${sign}${changePct.toFixed(1)}%)</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  el.innerHTML = `
+    ${portfolioHTML}
+    <div class="stock-section-title" style="margin-top:${portfolio.length?'14px':'0'}">📊 Торги · топ-15</div>
+    <div class="stock-list" id="stockList">${listHTML}</div>
+    <div id="stockDetail"></div>`;
+
+  el.querySelectorAll('.stock-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const id = row.dataset.id;
+      const price = parseInt(row.dataset.price);
+      const title = row.dataset.title;
+      const hist = historyMap[id]||[];
+      const myH = holdMap[id];
+      openStockDetail(id, title, price, hist, myH, holdMap, newPrices, holdings);
+    });
+  });
+  el.querySelectorAll('.stock-portfolio-row').forEach(row=>{
+    row.addEventListener('click', ()=>{
+      const id = row.dataset.id;
+      const price = newPrices[id]||0;
+      const title = holdMap[id]?.item_title||'';
+      const hist = historyMap[id]||[];
+      const myH = holdMap[id];
+      openStockDetail(id, title, price, hist, myH, holdMap, newPrices, holdings);
+    });
+  });
+}
+
+function openStockDetail(itemId, title, price, hist, myHolding, holdMap, newPrices, holdings){
+  const det = document.getElementById('stockDetail');
+  if(!det) return;
+  const shares = myHolding ? myHolding.shares : 0;
+  const avgPrice = myHolding ? myHolding.avg_price : price;
+  const curVal = shares * price;
+  const pnl = (price - avgPrice) * shares;
+  det.innerHTML = `
+    <div class="stock-detail">
+      <div class="stock-detail-head">
+        <b>${esc(title)}</b>
+        <span class="stock-price" style="font-size:18px">${price}🟡</span>
+      </div>
+      ${stockBigChart(hist, 340, 110)}
+      ${shares>0?`<div class="stock-my-pos">У тебя: ${shares} акц. · куплено по ${avgPrice}🟡 · сейчас ${curVal}🟡 · <span style="color:${pnl>=0?'#4ade80':'#ff477e'}">${pnl>=0?'+':''}${pnl}🟡</span></div>`:''}
+      <div class="stock-trade-row">
+        <input type="number" id="stockAmt" min="1" value="1" placeholder="Кол-во акций" class="casino-bet-inp" style="width:100px">
+        <button class="btn" id="stockBuy">Купить</button>
+        ${shares>0?`<button class="btn ghost" id="stockSell">Продать</button>`:''}
+      </div>
+      <div class="err" id="stockErr"></div>
+    </div>`;
+
+  const amtInp = det.querySelector('#stockAmt');
+  det.querySelector('#stockBuy').addEventListener('click', async()=>{
+    const amt = parseInt(amtInp.value)||0;
+    const cost = amt * price;
+    const err = det.querySelector('#stockErr');
+    if(amt<1){err.textContent='Укажи количество';return;}
+    if(cost>coinBalance){err.textContent=`Нужно ${cost}🟡, у тебя ${coinBalance}🟡`;return;}
+    await addCoins(-cost);
+    try{
+      const id = `${domain}:${itemId}:${myHandle}`;
+      if(myHolding && myHolding.shares>0){
+        const newShares = myHolding.shares + amt;
+        const newAvg = Math.round((myHolding.avg_price*myHolding.shares + price*amt)/newShares);
+        await sb.from('stock_holdings').update({shares:newShares, avg_price:newAvg}).eq('id',id);
+      } else {
+        await sb.from('stock_holdings').upsert({id, domain, item_id:itemId, item_title:title,
+          owner:myHandle, shares:amt, avg_price:price});
+      }
+      toast.ok(`📈 Куплено ${amt} акц. «${title}» по ${price}🟡`);
+      loadStockTab();
+    }catch(e){ await addCoins(cost); err.textContent='Ошибка покупки'; }
+  });
+
+  const sellBtn = det.querySelector('#stockSell');
+  if(sellBtn) sellBtn.addEventListener('click', async()=>{
+    const amt = parseInt(amtInp.value)||0;
+    const err = det.querySelector('#stockErr');
+    if(amt<1){err.textContent='Укажи количество';return;}
+    if(amt>shares){err.textContent=`У тебя только ${shares} акций`;return;}
+    const revenue = amt * price;
+    await addCoins(revenue);
+    try{
+      const id = `${domain}:${itemId}:${myHandle}`;
+      const newShares = shares - amt;
+      await sb.from('stock_holdings').update({shares:newShares}).eq('id',id);
+      const profit = (price-avgPrice)*amt;
+      toast.coin(`📉 Продано ${amt} акц. «${title}» · выручка ${revenue}🟡 · P&L ${profit>=0?'+':''}${profit}🟡`);
+      loadStockTab();
+    }catch(e){ await addCoins(-revenue); err.textContent='Ошибка продажи'; }
+  });
+}
+
+async function openBank(initTab){
+  initTab = initTab || 'deposit';
   if(!myHandle){
     showModal(`<button class="close" onclick="__close()">×</button>
       <h3>🏦 Банк ${bankName[domain]} Добрий</h3>
@@ -4469,22 +4786,41 @@ async function openBank(){
   }
   showModal(`<button class="close" onclick="__close()">×</button>
     <h3>🏦 Банк ${bankName[domain]} Добрий</h3>
-    <div class="bank-loading mono">Загружаю вклад…</div>`);
+    <div class="board-tabs" id="bankTabs">
+      <button class="btab ${initTab==='deposit'?'active':''}" data-tab="deposit">💰 Вклад</button>
+      <button class="btab ${initTab==='stock'?'active':''}" data-tab="stock">📈 Биржа</button>
+    </div>
+    <div id="bankTabContent"><div class="bank-loading mono">Загружаю…</div></div>`);
 
-  // Грузим активный вклад
+  document.getElementById('bankTabs').querySelectorAll('.btab').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      document.getElementById('bankTabs').querySelectorAll('.btab')
+        .forEach(x=>x.classList.toggle('active', x.dataset.tab===b.dataset.tab));
+      if(b.dataset.tab==='deposit') loadDepositTab();
+      else loadStockTab();
+    });
+  });
+
+  if(initTab==='deposit') loadDepositTab();
+  else loadStockTab();
+}
+
+async function loadDepositTab(){
+  const el = document.getElementById('bankTabContent');
+  el.innerHTML = '<div class="bank-loading mono">Загружаю вклад…</div>';
   let saving = null;
   try{
     const { data } = await sb.from('savings').select('*')
       .eq('domain', domain).eq('owner', myHandle).eq('status','active')
       .order('opened_at', {ascending:false}).limit(1);
     saving = data && data[0] ? data[0] : null;
-  }catch(e){ console.error('load savings failed', e); }
-
-  renderBankModal(saving);
+  }catch(e){}
+  renderDepositContent(saving);
 }
 
-function renderBankModal(saving){
-  const bname = `Банк ${bankName[domain]} Добрий`;
+function renderDepositContent(saving){
+  const el = document.getElementById('bankTabContent');
+  if(!el) return;
   let content = '';
   if(saving){
     const interest = calcSavingsInterest(saving.amount, saving.opened_at);
@@ -4518,13 +4854,9 @@ function renderBankModal(saving){
       <div class="err" id="bankErr"></div>
       <button class="btn" id="bankOpen" style="width:100%;margin-top:8px">🏦 Открыть вклад</button>`;
   }
-  modal.querySelector('.bank-loading') && (modal.innerHTML = modal.innerHTML); // reset
-  showModal(`<button class="close" onclick="__close()">×</button>
-    <h3>🏦 ${bname}</h3>
-    ${content}`);
+  el.innerHTML = content;
 
   if(saving){
-    // Снять с процентами
     document.getElementById('bankClose').addEventListener('click', async()=>{
       const interest = calcSavingsInterest(saving.amount, saving.opened_at);
       const total = saving.amount + interest;
@@ -4533,7 +4865,6 @@ function renderBankModal(saving){
       toast.coin(`🏦 Вклад закрыт! Получено ${total}🟡 (+${interest}🟡 проценты)`);
       closeModal();
     });
-    // Досрочно — без процентов
     armButton(document.getElementById('bankCloseEarly'), 'Точно закрыть без процентов?', async()=>{
       await sb.from('savings').update({status:'closed_early'}).eq('id', saving.id);
       await addCoins(saving.amount);
@@ -4541,7 +4872,6 @@ function renderBankModal(saving){
       closeModal();
     });
   } else {
-    // Превью графика при вводе суммы
     const amtInp = document.getElementById('bankAmount');
     amtInp.addEventListener('input', ()=>{
       const v = parseInt(amtInp.value)||100;
@@ -4560,12 +4890,9 @@ function renderBankModal(saving){
           id: `${domain}:${myHandle}:${Date.now()}`,
           domain, owner: myHandle, amount, status:'active'
         });
-      }catch(e){ console.error('open savings failed', e); await addCoins(amount); return; }
+      }catch(e){ await addCoins(amount); return; }
       toast.coin(`🏦 Вклад открыт на ${amount}🟡 · ${(BANK_RATE*100).toFixed(1)}% в месяц`);
-      // Перезагружаем модалку с активным вкладом
-      const { data } = await sb.from('savings').select('*')
-        .eq('domain',domain).eq('owner',myHandle).eq('status','active').limit(1);
-      renderBankModal(data && data[0] ? data[0] : null);
+      loadDepositTab();
     });
   }
 }
