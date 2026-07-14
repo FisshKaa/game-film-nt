@@ -2085,6 +2085,7 @@ async function switchDomain(dom){
   searchQuery = ''; statusFilter = 'all'; currentView = 'me'; boardTab = 'reviews';
   document.body.dataset.domain = domain;
   render();
+  startRewardTimer();
   loadFriendsActivity();
   loadFriendsReviews();
   loadRecentCollections();
@@ -2298,7 +2299,8 @@ function statsHTML(list, coin, live){
   const topTier = rated.length ? rated.reduce((best,g)=>{ const k=tierOf(g.score).key; return tierIdx(k) < tierIdx(best) ? k : best; }, 'F') : '—';
   const played = rated.length;
   const coinStat = (coin === null || coin === undefined) ? '' :
-    `<div class="stat"><div class="num"${live?' id="coinStatNum"':''}>${coin}</div><div class="lab">🟡 Добрикоин</div></div>`;
+    `<div class="stat"><div class="num"${live?' id="coinStatNum"':''}>${coin}</div><div class="lab">🟡 Добрикоин</div></div>
+    ${live ? `<div class="stat" style="grid-column:span 2"><div class="num" id="rewardTimerNum" style="font-size:16px">…</div><div class="lab">⏱ До награды за обзор</div></div>` : ''}`;
   return `
     <div class="stat"><div class="num">${count}</div><div class="lab">Обзоров</div></div>
     <div class="stat"><div class="num">${rated.length?avg.toFixed(1):'—'}</div><div class="lab">Средний балл</div></div>
@@ -2419,6 +2421,36 @@ function render(){
   app.innerHTML = html;
   wireMain();
   if(currentView === 'friends') loadFriendsArea();
+}
+
+async function startRewardTimer(){
+  let timerInterval = null;
+  async function tick(){
+    const el = document.getElementById('rewardTimerNum');
+    if(!el){ clearInterval(timerInterval); return; }
+    try{
+      const r = await window.storage.get('lastReviewReward:'+domain, false);
+      if(!r || !r.value){
+        el.textContent = '🎁 Доступно!';
+        el.style.color = '#4ade80';
+        return;
+      }
+      const last = parseInt(r.value, 10);
+      const remaining = REVIEW_REWARD_COOLDOWN_MS - (Date.now() - last);
+      if(remaining <= 0){
+        el.textContent = '🎁 Доступно!';
+        el.style.color = '#4ade80';
+      } else {
+        const h = Math.floor(remaining / 3600000);
+        const m = Math.floor((remaining % 3600000) / 60000);
+        const s = Math.floor((remaining % 60000) / 1000);
+        el.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        el.style.color = remaining < 3600000 ? '#f5b942' : 'var(--text)';
+      }
+    }catch(e){}
+  }
+  await tick();
+  timerInterval = setInterval(tick, 1000);
 }
 
 function wireMain(){
@@ -5383,6 +5415,7 @@ armButton(document.getElementById('resetBtn'), 'Точно очистить эт
   // чтобы профиль совпадал с тем, что видно на других устройствах/браузерах.
   await syncFromCloud(domain);
   render();
+  startRewardTimer();
   loadFriendsActivity();
   loadFriendsReviews();
   loadRecentCollections();
