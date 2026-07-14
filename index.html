@@ -4040,7 +4040,8 @@ function openCollectionDetail(coll, readonly, owner, itemList, onBack){
 
   // Реакции на коллекцию
   const rxEl = document.getElementById('rxContainerColl');
-  if(rxEl) renderReactions(rxEl, owner || (readonly?null:myHandle), 'coll:'+coll.id, !readonly&&!owner);
+  const rxCollOwner = owner || (readonly?null:myHandle);
+  if(rxEl) renderReactions(rxEl, rxCollOwner, 'coll:'+coll.id, !!myHandle && rxCollOwner === myHandle);
 
   // Клик по игре — открывает её обзор (используем glist — игры владельца)
   modal.querySelectorAll('.coll-detail-item').forEach(el=>{
@@ -4223,9 +4224,13 @@ function openDetail(id, list, readonly, onBack, backLabel){
   `);
   if(onBack){ const bb=document.getElementById('backBtn'); if(bb) bb.addEventListener('click', onBack); }
 
-  // Реакции: readonly=true → чужой обзор (owner = нужен снаружи), readonly=false → мой
+  // Реакции: readonly=true → чужой обзор (owner = нужен снаружи), readonly=false → мой.
+  // isOwn считаем по фактическому владельцу, а не по readonly — иначе при заходе
+  // на СВОЙ профиль через друзей (readonly=true, но owner===myHandle) можно
+  // будет реагировать на собственные обзоры.
   const rxContainer = document.getElementById('rxContainer');
-  if(rxContainer) renderReactions(rxContainer, readonly ? (list.__owner || null) : myHandle, g.id, !readonly);
+  const rxEffOwner = readonly ? (list.__owner || null) : myHandle;
+  if(rxContainer) renderReactions(rxContainer, rxEffOwner, g.id, !!myHandle && rxEffOwner === myHandle);
 
   if(readonly) return;
   document.getElementById('editG').addEventListener('click', ()=>openForm(id));
